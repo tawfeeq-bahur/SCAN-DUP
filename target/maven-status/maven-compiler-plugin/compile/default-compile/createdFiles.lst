@@ -1,0 +1,6 @@
+com\dupfinder\model\FileRecord.class
+com\dupfinder\util\HashingUtility.class
+com\dupfinder\service\FileScanner.class
+com\dupfinder\service\FileScanner$1.class
+com\dupfinder\engine\DuplicateDetectionEngine.class
+com\dupfinder\Main.class
