@@ -90,3 +90,4 @@ Using `electron-builder`, this application can be bundled into a single, distrib
 <div align="center">
   <p><i>Built with passion for high-performance file intelligence.</i></p>
 </div>
+
