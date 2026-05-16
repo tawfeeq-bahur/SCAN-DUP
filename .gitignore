@@ -1,0 +1,33 @@
+# Maven
+target/
+backend/target/
+
+# Java
+*.class
+*.jar
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Build folders
+dist/
+frontend/dist/
+frontend/.dist/
+
+# Electron
+release/
+
+# Database
+*.db
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
