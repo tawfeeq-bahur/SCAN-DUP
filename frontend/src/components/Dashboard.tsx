@@ -1,19 +1,11 @@
 import React, { useState } from 'react';
 import { 
-  FolderSearch, 
-  Activity, 
-  FileCheck, 
-  ShieldCheck, 
-  Database, 
-  Trash2, 
-  ChevronRight,
-  Search,
-  HardDrive,
-  Eye,
-  PieChart,
-  ListFilter
+  Activity, ShieldCheck, Database, Trash2, 
+  Search, HardDrive, PieChart, ListFilter, ChevronRight,
+  Image as ImageIcon, Film, FileText, Code2, File,
+  Hash, MapPin, X, Fingerprint, Layers
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface DuplicateFile {
   name: string;
@@ -36,6 +28,17 @@ const formatBytes = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
+const getCategoryIcon = (category: string, size = 14) => {
+  switch (category) {
+    case 'Images': return <ImageIcon size={size} />;
+    case 'Videos': return <Film size={size} />;
+    case 'Documents': return <FileText size={size} />;
+    case 'Code Files': 
+    case 'Modules & Packages': return <Code2 size={size} />;
+    default: return <File size={size} />;
+  }
+};
+
 export default function Dashboard() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanPath, setScanPath] = useState('D:\\');
@@ -49,7 +52,7 @@ export default function Dashboard() {
   const groupsPerPage = 100;
   
   const [activeTab, setActiveTab] = useState<'list'|'analytics'>('list');
-  const [previewFile, setPreviewFile] = useState<string | null>(null);
+  const [selectedFilePreview, setSelectedFilePreview] = useState<{file: DuplicateFile, group: DuplicateGroup} | null>(null);
   const [scanProgress, setScanProgress] = useState<{filesScanned: number, bytesScanned: number, currentFile: string, phase: string} | null>(null);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -173,6 +176,7 @@ export default function Dashboard() {
         }
         
         setSelectedFiles(new Set());
+        setSelectedFilePreview(null);
         setDeleteStats({ count: data.deletedCount || 0, time: performance.now() - startDeleteTime });
       } else {
         setErrorMsg('Failed to delete files');
@@ -189,6 +193,7 @@ export default function Dashboard() {
     setErrorMsg('');
     setDuplicates([]);
     setSelectedFiles(new Set());
+    setSelectedFilePreview(null);
     setCurrentPage(1);
     setScanTime(null);
     setDeleteStats(null);
@@ -198,7 +203,7 @@ export default function Dashboard() {
         const res = await fetch('http://localhost:8080/api/scan/progress');
         if (res.ok) setScanProgress(await res.json());
       } catch (e) {}
-    }, 200);
+    }, 150);
     
     const startTime = performance.now();
     try {
@@ -216,7 +221,6 @@ export default function Dashboard() {
         return;
       }
       
-      // Data shape is { timeMs, duplicates: { hash: [ { path, size, hash } ] } }
       const newDuplicates: DuplicateGroup[] = [];
       const newCategoryMap: Record<string, string> = {};
       let totalFiles = 0;
@@ -255,8 +259,8 @@ export default function Dashboard() {
       setCategoryMap(newCategoryMap);
       setScanTime(data.timeMs || (performance.now() - startTime));
       setScanStats({
-        files: totalFiles, // Total duplicate files
-        totalSize: (totalWastedSize / (1024 * 1024 * 1024)).toFixed(2) as any, // GB
+        files: totalFiles,
+        totalSize: (totalWastedSize / (1024 * 1024 * 1024)).toFixed(2) as any,
         duplicates: newDuplicates.length
       });
       
@@ -270,290 +274,370 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-8">
-      {/* Header Section */}
-      <header className="flex justify-between items-end pb-6 border-bottom border-[#141414]/20">
-        <div className="flex flex-col gap-2 w-1/2">
-          <h2 className="font-serif italic text-4xl">System Scanner</h2>
-          <input 
-            type="text" 
-            value={scanPath}
-            onChange={(e) => setScanPath(e.target.value)}
-            className="text-xs font-mono bg-white/50 border border-[#141414]/20 p-2 rounded w-full uppercase"
-            placeholder="Enter directory path..."
-          />
-          {errorMsg && <p className="text-red-500 text-xs font-mono">{errorMsg}</p>}
-          <div className="flex gap-4 font-mono text-[10px] uppercase opacity-70 mt-1">
-            {scanTime !== null && <span>Fetch Time: {(scanTime / 1000).toFixed(2)}s</span>}
-            {deleteStats !== null && <span className="text-red-600 font-bold">Deleted {deleteStats.count} files in {(deleteStats.time / 1000).toFixed(2)}s</span>}
-          </div>
-        </div>
-        <div className="flex gap-2 items-end">
-          {duplicates.length > 0 && (
-            <div className="flex gap-2 mr-4 border-r border-[#141414]/20 pr-4">
+    <div className="space-y-8 pb-12 relative min-h-screen">
+      
+      {/* 1. TOP ACTION BAR HIERARCHY */}
+      <header className="flex flex-col gap-6 pb-6 border-b border-[#141414]/10 relative z-20">
+        <div className="flex justify-between items-start">
+          <div className="flex-1 max-w-2xl">
+            <h2 className="font-serif italic text-4xl mb-4 text-[#141414]">System Intelligence</h2>
+            <div className="flex bg-white/40 border border-[#141414]/10 p-2 rounded-xl backdrop-blur-md shadow-sm focus-within:border-[#D6B98C] focus-within:shadow-[0_0_15px_rgba(214,185,140,0.1)] transition-all">
+              <input 
+                type="text" 
+                value={scanPath}
+                onChange={(e) => setScanPath(e.target.value)}
+                className="flex-1 bg-transparent border-none outline-none font-mono text-sm uppercase px-4 text-[#141414] placeholder:opacity-40"
+                placeholder="ENTER TARGET DIRECTORY..."
+              />
               <button 
-                onClick={handleSelectAll}
-                className="px-4 py-3 border border-[#141414] rounded font-mono text-xs hover:bg-[#141414]/5 transition-colors"
+                onClick={handleStartScan}
+                disabled={isScanning}
+                className="bg-[#141414] text-[#E4E3E0] px-8 py-3 rounded-lg flex items-center gap-2 hover:bg-[#141414]/90 hover:scale-[1.02] active:scale-[0.98] transition-all font-mono text-xs uppercase tracking-widest shadow-md"
               >
-                SELECT ALL DUPLICATES
-              </button>
-              <button 
-                onClick={handleDeleteSelected}
-                disabled={selectedFiles.size === 0 || isDeleting}
-                className={`px-4 py-3 text-[#E4E3E0] rounded font-mono text-xs transition-all flex items-center gap-2 ${selectedFiles.size > 0 ? 'bg-red-600 hover:bg-red-700 cursor-pointer' : 'bg-[#141414] opacity-50 cursor-not-allowed'}`}
-              >
-                <Trash2 size={14} />
-                {isDeleting ? 'DELETING...' : `DELETE ${selectedFiles.size} (${formatBytes(selectedSize)})`}
+                {isScanning ? <><Activity size={14} className="animate-spin" /> SCANNING</> : <><Search size={14} /> ANALYZE PATH</>}
               </button>
             </div>
-          )}
-          {!isScanning ? (
-            <button 
-              onClick={handleStartScan}
-              className="bg-[#141414] text-[#E4E3E0] px-6 py-3 rounded flex items-center gap-2 hover:scale-[1.02] transition-transform font-mono text-sm"
-            >
-              <FolderSearch size={18} />
-              INITIATE SCAN
-            </button>
-          ) : (
-            <div className="bg-[#141414]/10 px-6 py-3 rounded flex flex-col items-center justify-center font-mono text-sm min-w-[200px]">
-              <div className="flex items-center gap-4">
-                <Activity size={18} className="animate-pulse" />
-                <span>SCANNING...</span>
+            {errorMsg && <p className="text-red-500 text-xs font-mono mt-2 ml-2">{errorMsg}</p>}
+            <div className="flex gap-4 font-mono text-[10px] uppercase opacity-50 mt-2 ml-2">
+              {scanTime !== null && <span>Fetch Time: {(scanTime / 1000).toFixed(2)}s</span>}
+              {deleteStats !== null && <span className="text-red-600 font-bold">Deleted {deleteStats.count} files in {(deleteStats.time / 1000).toFixed(2)}s</span>}
+            </div>
+          </div>
+
+          {/* 2. SECONDARY ACTIONS (Muted Red) */}
+          {duplicates.length > 0 && (
+            <div className="flex flex-col items-end gap-3 mt-4">
+              <div className="font-mono text-[10px] uppercase tracking-widest opacity-60">Bulk Control</div>
+              <div className="flex gap-2">
+                <button onClick={handleSelectAll} className="px-4 py-3 bg-white/40 border border-[#141414]/10 hover:bg-[#141414]/5 rounded-lg font-mono text-xs transition-colors text-[#141414]">
+                  SELECT ALL
+                </button>
+                <button 
+                  onClick={handleDeleteSelected}
+                  disabled={selectedFiles.size === 0 || isDeleting}
+                  className={`px-6 py-3 rounded-lg font-mono text-xs transition-all flex items-center gap-2 ${selectedFiles.size > 0 ? 'bg-red-600 text-white hover:bg-[#9a3d3b] shadow-lg shadow-[#B86A6A]/20 hover:scale-[1.02] active:scale-[0.98]' : 'bg-[#141414]/5 text-[#141414]/40 cursor-not-allowed border border-[#141414]/10'}`}
+                >
+                  <Trash2 size={14} /> PURGE SELECTED ({selectedFiles.size})
+                </button>
               </div>
-              {scanProgress && <span className="text-[10px] opacity-70 mt-1">{scanProgress.phase}</span>}
             </div>
           )}
         </div>
       </header>
 
-      {/* Progress Bar */}
-      {(isScanning || isDeleting) && (
-        <div className="space-y-2">
-          <div className="flex justify-between items-center text-xs font-mono opacity-60 uppercase tracking-widest">
-            <div className="flex items-center gap-2">
-              <Activity size={14} className="animate-pulse" />
-              {isScanning ? 'SCANNING FILE SYSTEM...' : 'PROCESSING DELETION...'}
+      {/* 9. LIVE SCAN STATUS */}
+      <AnimatePresence>
+        {(isScanning || isDeleting) && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+            <div className="bg-[#141414]/5 border border-[#D6B98C]/20 p-6 rounded-xl relative overflow-hidden backdrop-blur-md">
+               <div className="absolute top-0 left-0 w-1 h-full bg-[#141414]" />
+               <div className="flex justify-between items-center text-xs font-mono uppercase tracking-widest text-[#141414] mb-3">
+                  <div className="flex items-center gap-3"><Activity size={16} className="animate-pulse"/> {isScanning ? 'TELEMETRY SCAN ACTIVE...' : 'PURGING FILES...'}</div>
+                  {scanProgress && <span className="font-bold">{formatBytes(scanProgress.bytesScanned)} DATA PROCESSED</span>}
+               </div>
+               <div className="h-1.5 bg-[#141414]/10 rounded-full overflow-hidden mb-3">
+                 <motion.div className="h-full bg-[#141414]" style={{ backgroundSize: '200% 100%' }} animate={{ backgroundPosition: ['100% 0', '-100% 0'] }} transition={{ repeat: Infinity, duration: 2, ease: 'linear'}} />
+               </div>
+               {scanProgress && <div className="text-[10px] font-mono opacity-60 truncate">{scanProgress.currentFile || 'Awaiting file...'}</div>}
             </div>
-            {isScanning && scanProgress && (
-              <span className="text-right">
-                {scanProgress.filesScanned.toLocaleString()} files / {formatBytes(scanProgress.bytesScanned)}
-              </span>
-            )}
-          </div>
-          {isScanning && scanProgress && scanProgress.currentFile && (
-            <div className="text-[9px] font-mono opacity-40 truncate" title={scanProgress.currentFile}>
-              {scanProgress.currentFile}
-            </div>
-          )}
-          <div className="h-1 bg-[#141414]/10 w-full rounded-full overflow-hidden">
-            <motion.div 
-              className={`h-full ${isDeleting ? 'bg-red-600' : 'bg-[#141414]'}`}
-              initial={{ width: '0%', marginLeft: '0%' }}
-              animate={{ width: ['0%', '50%', '0%'], marginLeft: ['0%', '50%', '100%'] }}
-              transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-            />
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Stats Cards */}
+      {/* STATS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard icon={<HardDrive size={16} />} label="FILES ANALYZED" value={scanStats.files.toLocaleString()} />
-        <StatCard icon={<FileCheck size={16} />} label="DUPLICATE GROUPS" value={scanStats.duplicates} />
-        <StatCard icon={<Database size={16} />} label="WASTED SPACE" value={`${scanStats.totalSize} GB`} />
-        <StatCard icon={<ShieldCheck size={16} />} label="CLEANUP SAFETY" value="99.8%" accent />
+        <StatCard icon={<Layers size={16} />} label="DUPLICATE CLUSTERS" value={scanStats.duplicates} />
+        {/* 8. SPACE SAVED VISUALIZATION */}
+        <div className="border border-[#141414]/10 p-4 rounded-xl bg-white/40 hover:bg-[#141414]/5 transition-all relative overflow-hidden group">
+          <div className="absolute top-0 left-0 w-full h-1 bg-[#141414]/30 group-hover:bg-[#141414]/80 transition-colors" />
+          <div className="flex items-center gap-2 opacity-50 mb-2">
+            <Database size={14} />
+            <span className="text-[9px] font-mono uppercase tracking-widest">RECLAIMABLE STORAGE</span>
+          </div>
+          <div className="text-3xl font-serif italic text-[#141414] flex items-center gap-3">
+             {scanStats.totalSize} GB
+             {parseFloat(scanStats.totalSize as any) > 0 && (
+               <motion.div className="h-4 w-4 bg-[#141414]" animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} />
+             )}
+          </div>
+        </div>
+        <StatCard icon={<ShieldCheck size={16} />} label="SYSTEM HEALTH" value="OPTIMIZED" />
       </div>
 
-      {/* Smart Category Selection */}
+      {/* 6. FILTER CHIPS & 5. ANALYTICS TOGGLE */}
       {duplicates.length > 0 && (
-        <div className="mt-8 mb-4 p-4 border border-[#141414]/20 rounded-lg bg-white/30 flex flex-wrap items-center justify-between gap-4 font-mono text-xs shadow-sm">
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="font-bold opacity-70 border-r border-[#141414]/20 pr-4">QUICK SELECT:</span>
-            {Array.from(new Set(Object.values(categoryMap))).sort().map(cat => {
-              const isSelected = isCategoryFullySelected(cat);
-              const isDangerous = cat === 'Code Files' || cat === 'Modules & Packages';
-              return (
-                <label key={cat} className={`flex items-center gap-2 cursor-pointer p-2 rounded transition-colors ${isDangerous ? 'hover:bg-red-500/10' : 'hover:bg-[#141414]/5'}`}>
-                  <input 
-                    type="checkbox" 
-                    checked={isSelected}
-                    onChange={(e) => handleSelectCategory(cat, e.target.checked)}
-                    className={`w-4 h-4 cursor-pointer ${isDangerous ? 'accent-red-600' : 'accent-[#141414]'}`}
-                  />
-                  <span className={isDangerous ? 'text-red-600 font-bold' : ''}>
-                    {cat}
-                  </span>
-                </label>
-              )
-            })}
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-[#141414]/10 pb-6 gap-4">
+          <div className="flex flex-wrap gap-2 items-center">
+             <span className="font-mono text-[10px] uppercase opacity-50 tracking-widest mr-2">SMART FILTERS:</span>
+             {Array.from(new Set(Object.values(categoryMap))).sort().map(cat => {
+               const isSelected = isCategoryFullySelected(cat);
+               return (
+                 <button
+                   key={cat}
+                   onClick={() => handleSelectCategory(cat, !isSelected)}
+                   className={`px-4 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all duration-300 border flex items-center gap-2
+                    ${isSelected 
+                      ? 'bg-[#141414]/10 border-[#D6B98C] text-[#141414] shadow-[0_0_15px_rgba(214,185,140,0.1)]' 
+                      : 'bg-white/40 border-[#141414]/10 text-[#141414]/60 hover:border-[#141414]/10 hover:bg-[#141414]/5'}`}
+                 >
+                   {getCategoryIcon(cat, 12)}
+                   {cat}
+                 </button>
+               )
+             })}
           </div>
-          <div className="flex border border-[#141414]/20 rounded overflow-hidden">
-            <button 
-              onClick={() => setActiveTab('list')}
-              className={`px-4 py-2 flex items-center gap-2 ${activeTab === 'list' ? 'bg-[#141414] text-[#E4E3E0]' : 'hover:bg-[#141414]/10'}`}
-            >
-              <ListFilter size={14} /> List View
+          
+          <div className="bg-[#141414]/5 p-1 rounded-full flex font-mono text-xs relative shadow-inner">
+            <motion.div 
+              className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#141414] rounded-full shadow-md z-0"
+              animate={{ x: activeTab === 'list' ? 0 : '100%', left: activeTab === 'list' ? 4 : 0 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            />
+            <button onClick={() => setActiveTab('list')} className={`relative z-10 px-6 py-2 flex items-center gap-2 transition-colors duration-300 rounded-full ${activeTab === 'list' ? 'text-[#E4E3E0]' : 'text-[#141414]/60 hover:text-[#141414]'}`}>
+              <ListFilter size={14}/> CLUSTERS
             </button>
-            <button 
-              onClick={() => setActiveTab('analytics')}
-              className={`px-4 py-2 flex items-center gap-2 ${activeTab === 'analytics' ? 'bg-[#141414] text-[#E4E3E0]' : 'hover:bg-[#141414]/10'}`}
-            >
-              <PieChart size={14} /> Analytics
+            <button onClick={() => setActiveTab('analytics')} className={`relative z-10 px-6 py-2 flex items-center gap-2 transition-colors duration-300 rounded-full ${activeTab === 'analytics' ? 'text-[#E4E3E0]' : 'text-[#141414]/60 hover:text-[#141414]'}`}>
+              <PieChart size={14}/> ANALYTICS
             </button>
           </div>
         </div>
       )}
 
-      {/* Results Table Section */}
-      {duplicates.length > 0 && activeTab === 'list' && (
-      <section className="mt-6 bg-white/50 border border-[#141414] rounded-lg overflow-hidden">
-        <div className="grid grid-cols-12 gap-4 p-4 bg-[#141414]/5 border-b border-[#141414] text-[10px] uppercase font-mono tracking-wider opacity-60">
-          <div className="col-span-1 flex justify-center">SELECT</div>
-          <div className="col-span-4">FILE IDENTITY</div>
-          <div className="col-span-4">LOCATION</div>
-          <div className="col-span-1">SIZE</div>
-          <div className="col-span-2 text-right">ACTIONS</div>
-        </div>
-
-        <div className="divide-y divide-[#141414]/10">
-          {paginatedDuplicates.map((group, idx) => {
-            const actualIdx = (currentPage - 1) * groupsPerPage + idx;
-            return (
-            <React.Fragment key={group.hash}>
-              {group.files.map((file, fIdx) => (
-                <div 
-                  key={file.path + file.name}
-                  className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-[#141414] hover:text-[#E4E3E0] transition-colors group"
+      {/* MAIN CONTENT AREA */}
+      <div className="flex gap-8 relative items-start">
+        
+        {/* LEFT/MAIN LIST: 3. CLUSTER CARDS */}
+        <div className={`flex-1 transition-all duration-500 ${selectedFilePreview ? 'md:pr-[360px]' : ''}`}>
+          {duplicates.length > 0 && activeTab === 'list' && (
+            <div className="space-y-6">
+              {paginatedDuplicates.map((group, idx) => (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(idx * 0.05, 0.5) }}
+                  key={group.hash} 
+                  className="bg-white/40 backdrop-blur-sm border border-[#141414]/10 rounded-2xl overflow-hidden hover:border-[#141414]/10 hover:shadow-xl transition-all duration-300 group/card"
                 >
-                  <div className="col-span-1 flex items-center justify-center">
-                    {fIdx !== 0 ? (
-                      <input 
-                        type="checkbox" 
-                        checked={selectedFiles.has(file.path)}
-                        onChange={() => toggleSelection(file.path)}
-                        className="w-4 h-4 cursor-pointer accent-[#141414]"
-                      />
-                    ) : (
-                      <span className="text-[10px] opacity-40 font-mono">{actualIdx + 1}.{fIdx + 1}</span>
-                    )}
-                  </div>
-                  <div className="col-span-4 font-medium flex items-center gap-2 truncate">
-                     {fIdx === 0 && <span className="text-[10px] bg-[#141414]/10 group-hover:bg-[#E4E3E0]/20 px-1 py-0.5 rounded text-xs">ORIGINAL</span>}
-                     {file.name}
-                  </div>
-                  <div className="col-span-4 text-[10px] font-mono opacity-60 group-hover:opacity-100 truncate italic">
-                    {file.path}
-                  </div>
-                  <div className="col-span-1 text-xs font-mono">
-                    {formatBytes(group.size)}
-                  </div>
-                  <div className="col-span-2 flex justify-end gap-2">
-                    {file.category === 'Images' && (
-                      <button 
-                        onClick={() => setPreviewFile(file.path)}
-                        className="p-1 rounded hover:bg-[#E4E3E0]/20 transition-colors"
-                        title="Preview Image"
-                      >
-                        <Eye size={16} />
-                      </button>
-                    )}
-                    <div className="text-[10px] font-mono bg-[#141414]/5 group-hover:bg-[#E4E3E0]/10 px-2 py-1 rounded truncate opacity-60 max-w-[80px]">
-                      {group.hash.substring(0, 8)}...
+                  {/* Original File Header */}
+                  <div className="bg-gradient-to-r from-[#141414]/5 to-transparent p-5 flex items-center justify-between border-b border-[#141414]/10">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="bg-[#141414] text-[#E4E3E0] text-[9px] font-mono px-2 py-1 rounded shadow-sm tracking-widest">ORIGINAL</div>
+                      <div className="text-[#141414]/50 bg-white/40 p-2 rounded-lg shadow-sm">{getCategoryIcon(group.category, 16)}</div>
+                      <div className="min-w-0">
+                         {/* 10. TYPOGRAPHY: Bolder filenames */}
+                         <div className="font-bold text-sm truncate text-[#141414]">{group.files[0].name}</div>
+                         <div className="font-mono text-[10px] opacity-40 truncate mt-0.5">{group.files[0].path}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6 shrink-0 pl-4">
+                      {/* Space Saved */}
+                      <div className="flex flex-col items-end">
+                        <span className="font-mono text-[9px] uppercase tracking-widest opacity-40 mb-1">Reclaimable</span>
+                        <span className="text-green-700 font-bold bg-green-500/10 px-3 py-1 rounded-full text-xs font-mono shadow-sm border border-green-500/20">
+                          {formatBytes(group.size * (group.files.length - 1))}
+                        </span>
+                      </div>
+                      {/* 11. SHORT HASH */}
+                      <div className="group/hash relative cursor-help hidden sm:block">
+                        <div className="font-mono text-[10px] opacity-30 hover:opacity-100 transition-opacity bg-[#141414]/5 px-2 py-1 rounded flex items-center gap-1">
+                          <Hash size={10} /> {group.hash.substring(0,6)}...
+                        </div>
+                        <div className="absolute right-0 top-full mt-2 hidden group-hover/hash:block bg-[#141414] text-white p-3 rounded-lg shadow-xl z-50 text-xs whitespace-nowrap font-mono">
+                          {group.hash}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                  
+                  {/* Duplicates List */}
+                  <div className="divide-y divide-[#2A2A2A]">
+                    {group.files.slice(1).map(file => (
+                      <div 
+                        key={file.path} 
+                        className={`p-4 pl-6 flex items-center justify-between transition-colors cursor-pointer border-l-4 
+                          ${selectedFilePreview?.file.path === file.path ? 'bg-[#141414]/5 border-[#D6B98C]' : 'border-transparent hover:bg-white/40/60 hover:border-[#141414]/10'}`}
+                        onClick={() => setSelectedFilePreview({file, group})}
+                      >
+                        <div className="flex items-center gap-4 min-w-0 flex-1">
+                          <div className="relative flex items-center justify-center p-2" onClick={(e) => { e.stopPropagation(); toggleSelection(file.path); }}>
+                             <input 
+                               type="checkbox" 
+                               checked={selectedFiles.has(file.path)} 
+                               onChange={() => {}} // Handled by div wrapper
+                               className="accent-[#141414] w-5 h-5 cursor-pointer relative z-10"
+                             />
+                             {selectedFiles.has(file.path) && <motion.div layoutId={`check-${file.path}`} className="absolute inset-0 bg-[#141414]/20 rounded-full blur-sm" />}
+                          </div>
+                          
+                          <div className="min-w-0 flex-1">
+                            {/* Bolder filename, lighter secondary text */}
+                            <div className={`font-semibold text-[13px] truncate transition-colors ${selectedFiles.has(file.path) ? 'text-red-600' : 'text-[#141414]'}`}>{file.name}</div>
+                            <div className="font-mono text-[10px] opacity-40 truncate mt-1 flex items-center gap-1">
+                               <MapPin size={10} /> {file.path}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="shrink-0 pl-4">
+                           <ChevronRight size={16} className={`transition-all ${selectedFilePreview?.file.path === file.path ? 'opacity-100 text-[#141414] translate-x-1' : 'opacity-20'}`} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
               ))}
-              <div className="bg-[#141414]/5 p-2 text-center text-[10px] font-mono uppercase tracking-widest opacity-40">
-                End of Cluster {actualIdx + 1}
-              </div>
-            </React.Fragment>
-          )})}
-        </div>
-      </section>
-      )}
 
-      {/* Analytics Section */}
-      {duplicates.length > 0 && activeTab === 'analytics' && (
-        <section className="mt-6 p-8 bg-white/50 border border-[#141414] rounded-lg">
-          <div className="flex items-center gap-3 mb-8">
-            <PieChart size={24} />
-            <h3 className="font-serif italic text-2xl">Storage Analytics</h3>
-          </div>
-          
-          <div className="space-y-6">
-            {Object.entries(
-              duplicates.reduce((acc, group) => {
-                acc[group.category] = (acc[group.category] || 0) + (group.size * (group.files.length - 1));
-                return acc;
-              }, {} as Record<string, number>)
-            ).sort((a, b) => b[1] - a[1]).map(([cat, size]) => {
-              const percentage = (size / duplicates.reduce((sum, g) => sum + g.size * (g.files.length - 1), 0)) * 100;
-              const isDangerous = cat === 'Code Files' || cat === 'Modules & Packages';
-              return (
-                <div key={cat} className="space-y-2">
-                  <div className="flex justify-between font-mono text-xs">
-                    <span className={isDangerous ? 'text-red-600 font-bold' : ''}>{cat}</span>
-                    <span className="font-bold">{formatBytes(size)} ({percentage.toFixed(1)}%)</span>
-                  </div>
-                  <div className="h-4 bg-[#141414]/10 w-full rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full ${isDangerous ? 'bg-red-600' : 'bg-[#141414]'}`} 
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-4 py-8 font-mono text-xs opacity-70">
+                  <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))} className="px-6 py-2 border border-[#141414]/10 rounded-full hover:bg-[#141414]/10 disabled:opacity-30 transition-all uppercase tracking-widest">
+                    Previous
+                  </button>
+                  <span className="bg-white/40 px-4 py-2 rounded-full border border-[#141414]/10 shadow-sm">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} className="px-6 py-2 border border-[#141414]/10 rounded-full hover:bg-[#141414]/10 disabled:opacity-30 transition-all uppercase tracking-widest">
+                    Next
+                  </button>
                 </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* Pagination Controls */}
-      {activeTab === 'list' && totalPages > 1 && (
-        <div className="flex justify-center items-center gap-4 py-6 text-sm font-mono opacity-80">
-          <button 
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-            className="px-4 py-2 border border-[#141414]/20 rounded hover:bg-[#141414]/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-          >
-            PREVIOUS
-          </button>
-          
-          <span className="bg-[#141414]/5 px-4 py-2 rounded">
-            PAGE <span className="font-bold">{currentPage}</span> OF {totalPages}
-          </span>
-          
-          <button 
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-            className="px-4 py-2 border border-[#141414]/20 rounded hover:bg-[#141414]/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-          >
-            NEXT
-          </button>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-[#E4E3E0] text-[#141414] p-8 rounded-lg max-w-md w-full shadow-2xl border border-[#141414]/20 space-y-6">
-            <div className="flex items-center gap-3 text-red-600">
-              <Trash2 size={24} />
-              <h3 className="font-serif italic text-2xl">Confirm Deletion</h3>
+              )}
             </div>
-            
-            <p className="font-sans text-sm opacity-80 leading-relaxed">
-              You are about to delete <strong>{selectedFiles.size}</strong> duplicate files, which will free up <strong>{formatBytes(selectedSize)}</strong> of space. How would you like to proceed?
-            </p>
+          )}
 
-            {/* Category Breakdown */}
-            <div className="bg-[#141414]/5 p-4 rounded border border-[#141414]/10">
-              <div className="flex justify-between mb-2">
-                <h4 className="font-mono text-[10px] uppercase tracking-widest opacity-60">Selected File Breakdown</h4>
-                <span className="font-mono text-[10px] font-bold">{formatBytes(selectedSize)} Selected</span>
+          {duplicates.length > 0 && activeTab === 'analytics' && (
+            <section className="bg-white/40 backdrop-blur-md border border-[#141414]/10 rounded-2xl p-8 shadow-xl">
+              <div className="flex items-center gap-3 mb-8 opacity-70">
+                <PieChart size={24} />
+                <h3 className="font-serif italic text-2xl">Storage Breakdown</h3>
               </div>
-              <div className="grid grid-cols-2 gap-2 font-mono text-xs">
+              
+              <div className="space-y-8">
+                {Object.entries(
+                  duplicates.reduce((acc, group) => {
+                    acc[group.category] = (acc[group.category] || 0) + (group.size * (group.files.length - 1));
+                    return acc;
+                  }, {} as Record<string, number>)
+                ).sort((a, b) => b[1] - a[1]).map(([cat, size], idx) => {
+                  const percentage = (size / duplicates.reduce((sum, g) => sum + g.size * (g.files.length - 1), 0)) * 100;
+                  const isDangerous = cat === 'Code Files' || cat === 'Modules & Packages';
+                  return (
+                    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.1 }} key={cat} className="space-y-3 group/stat">
+                      <div className="flex justify-between font-mono text-xs uppercase tracking-widest">
+                        <span className={`flex items-center gap-2 ${isDangerous ? 'text-red-600 font-bold' : 'opacity-80'}`}>
+                          {getCategoryIcon(cat, 14)} {cat}
+                        </span>
+                        <span className="font-bold text-[#141414]">{formatBytes(size)} <span className="opacity-40 font-normal ml-2">({percentage.toFixed(1)}%)</span></span>
+                      </div>
+                      <div className="h-3 bg-white/40 w-full rounded-full overflow-hidden shadow-inner border border-[#141414]/10">
+                        <motion.div 
+                          className={`h-full relative overflow-hidden ${isDangerous ? 'bg-red-600' : 'bg-[#141414]'}`} 
+                          initial={{ width: 0 }} animate={{ width: `${percentage}%` }} transition={{ duration: 1, ease: 'easeOut' }}
+                        >
+                          <div className="absolute inset-0 bg-white/40/20 w-full" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)', transform: 'skewX(-20deg)', animation: 'shimmer 2s infinite' }} />
+                        </motion.div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+        </div>
+
+        {/* 7. PREVIEW PANEL (Right Side Drawer) */}
+        <AnimatePresence>
+          {selectedFilePreview && activeTab === 'list' && (
+            <motion.div 
+              initial={{ x: 400, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 400, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="hidden md:flex w-[340px] fixed right-8 top-32 bottom-12 bg-white/40 text-[#141414] rounded-2xl shadow-2xl border border-[#D6B98C]/30 p-6 flex-col z-40 overflow-hidden"
+            >
+              <div className="flex justify-between items-start mb-6 pb-6 border-b border-[#141414]/10">
+                 <div className="flex items-center gap-3">
+                   <div className="p-3 bg-[#141414]/10 text-[#141414] rounded-xl">
+                      {getCategoryIcon(selectedFilePreview.file.category, 24)}
+                   </div>
+                   <div>
+                     <div className="font-mono text-[10px] uppercase tracking-widest opacity-50 text-[#141414] mb-1">File Intelligence</div>
+                     <h4 className="font-serif italic text-xl truncate max-w-[200px]" title={selectedFilePreview.file.name}>{selectedFilePreview.file.name}</h4>
+                   </div>
+                 </div>
+                 <button onClick={() => setSelectedFilePreview(null)} className="p-2 hover:bg-white/40/10 rounded-full transition-colors opacity-50 hover:opacity-100">
+                   <X size={16} />
+                 </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-6 scrollbar-hide">
+                 {/* Visual Preview (if image) */}
+                 {selectedFilePreview.file.category === 'Images' && (
+                   <div className="bg-black/50 rounded-xl p-2 border border-[#141414]/10 flex items-center justify-center min-h-[150px] relative overflow-hidden group">
+                     <img 
+                       src={`file:///${selectedFilePreview.file.path.replace(/\\/g, '/')}`} 
+                       alt="Preview" 
+                       className="max-w-full max-h-[200px] object-contain rounded-lg group-hover:scale-110 transition-transform duration-500"
+                     />
+                   </div>
+                 )}
+
+                 {/* Metadata Grid */}
+                 <div className="grid grid-cols-2 gap-4">
+                   <div className="bg-white/40/5 p-4 rounded-xl border border-[#141414]/10">
+                     <div className="flex items-center gap-2 font-mono text-[9px] uppercase opacity-50 mb-2"><HardDrive size={10} /> Size</div>
+                     <div className="font-bold text-lg">{formatBytes(selectedFilePreview.group.size)}</div>
+                   </div>
+                   <div className="bg-white/40/5 p-4 rounded-xl border border-[#141414]/10">
+                     <div className="flex items-center gap-2 font-mono text-[9px] uppercase opacity-50 mb-2"><Layers size={10} /> Category</div>
+                     <div className="font-bold text-sm truncate">{selectedFilePreview.file.category}</div>
+                   </div>
+                 </div>
+
+                 <div className="bg-white/40/5 p-4 rounded-xl border border-[#141414]/10 space-y-4">
+                   <div>
+                     <div className="flex items-center gap-2 font-mono text-[9px] uppercase opacity-50 mb-1"><MapPin size={10} /> Location</div>
+                     <div className="font-mono text-xs break-all opacity-80 leading-relaxed">{selectedFilePreview.file.path}</div>
+                   </div>
+                   <div>
+                     <div className="flex items-center gap-2 font-mono text-[9px] uppercase opacity-50 mb-1"><Fingerprint size={10} /> SHA-256 Hash</div>
+                     <div className="font-mono text-[10px] break-all text-[#7A7A7A] bg-[#E4E3E0] p-2 rounded border border-[#141414]/10">{selectedFilePreview.group.hash}</div>
+                   </div>
+                 </div>
+
+                 <div className="pt-4 border-t border-[#141414]/10">
+                   <button 
+                     onClick={() => toggleSelection(selectedFilePreview.file.path)}
+                     className={`w-full py-4 rounded-xl font-mono text-xs tracking-widest transition-all flex items-center justify-center gap-2 ${selectedFiles.has(selectedFilePreview.file.path) ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(185,74,72,0.4)]' : 'bg-white/40/10 hover:bg-white/40/20'}`}
+                   >
+                     {selectedFiles.has(selectedFilePreview.file.path) ? 'MARKED FOR DELETION' : 'MARK TO PURGE'}
+                   </button>
+                 </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+      </div>
+
+      {/* Delete Confirmation Modal (Same functionality, styled up) */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 backdrop-blur-md">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#141414] text-[#E4E3E0] p-8 rounded-2xl max-w-lg w-full shadow-2xl border border-[#141414]/10 space-y-6">
+            <div className="flex flex-col items-center text-center gap-4 mb-6">
+              <div className="w-16 h-16 rounded-full bg-red-600/20 flex items-center justify-center text-red-600 shadow-[0_0_30px_rgba(185,74,72,0.3)]">
+                 <Trash2 size={32} />
+              </div>
+              <h3 className="font-serif italic text-3xl">Purge Confirmation</h3>
+              <p className="font-sans text-sm opacity-60 leading-relaxed max-w-sm">
+                Initiating protocol to purge <strong>{selectedFiles.size}</strong> duplicate files. This operation will reclaim <strong className="text-green-500">{formatBytes(selectedSize)}</strong> of storage.
+              </p>
+            </div>
+
+            <div className="bg-white/40/5 p-4 rounded-xl border border-[#141414]/10">
+              <div className="flex justify-between items-center mb-4 pb-2 border-b border-[#141414]/10">
+                <h4 className="font-mono text-[10px] uppercase tracking-widest opacity-50">Target Intelligence</h4>
+              </div>
+              <div className="grid grid-cols-2 gap-3 font-mono text-xs">
                 {Object.entries(
                   Array.from(selectedFiles).reduce((acc, path) => {
                     const cat = categoryMap[path] || 'Others';
@@ -563,71 +647,27 @@ export default function Dashboard() {
                 ).map(([cat, count]) => {
                   const isDangerous = cat === 'Code Files' || cat === 'Modules & Packages';
                   return (
-                    <div key={cat} className={`flex justify-between p-1 border-b border-[#141414]/5 ${isDangerous ? 'text-red-600 font-bold' : ''}`}>
-                      <span>{cat}</span>
-                      <span>{count}</span>
+                    <div key={cat} className={`flex justify-between items-center p-2 rounded ${isDangerous ? 'bg-red-500/10 text-red-400' : 'bg-white/40/5'}`}>
+                      <span className="flex items-center gap-2">{getCategoryIcon(cat, 12)} {cat}</span>
+                      <span className="font-bold opacity-50">{count}</span>
                     </div>
                   );
                 })}
               </div>
-              {Array.from(selectedFiles).some(p => categoryMap[p] === 'Code Files' || categoryMap[p] === 'Modules & Packages') && (
-                <div className="mt-3 text-[10px] text-red-600 font-bold bg-red-100/50 p-2 rounded flex items-center gap-2">
-                  <ShieldCheck size={14} />
-                  WARNING: Deleting code files or modules might break your projects!
-                </div>
-              )}
             </div>
             
-            <div className="flex flex-col gap-3 font-mono text-xs">
-              <button 
-                onClick={() => confirmDelete(true)}
-                className="w-full px-4 py-3 bg-[#141414] text-[#E4E3E0] rounded hover:bg-[#141414]/80 transition-all text-left flex items-center gap-3 shadow-md"
-              >
-                <div className="w-2 h-2 rounded-full bg-yellow-500" />
-                MOVE TO RECYCLE BIN (SAFER)
+            <div className="flex flex-col gap-3 font-mono text-xs pt-4">
+              <button onClick={() => confirmDelete(true)} className="w-full px-4 py-4 bg-white/40/10 text-[#E4E3E0] hover:bg-white/40/20 rounded-xl transition-all flex items-center justify-center gap-3">
+                <ShieldCheck size={16} className="text-green-500" /> MOVE TO RECYCLE BIN (SAFE)
               </button>
-              
-              <button 
-                onClick={() => confirmDelete(false)}
-                className="w-full px-4 py-3 border border-red-600/30 text-red-600 rounded hover:bg-red-600 hover:text-[#E4E3E0] transition-all text-left flex items-center gap-3 group"
-              >
-                <div className="w-2 h-2 rounded-full bg-red-600 group-hover:bg-[#E4E3E0]" />
-                PERMANENTLY DELETE (CANNOT UNDO)
+              <button onClick={() => confirmDelete(false)} className="w-full px-4 py-4 border border-[#B86A6A]/30 text-red-600 hover:bg-red-600 hover:text-white rounded-xl transition-all flex items-center justify-center gap-3 group">
+                <Trash2 size={16} /> PERMANENT OBLITERATION
               </button>
-              
-              <button 
-                onClick={() => setShowDeleteModal(false)}
-                className="w-full px-4 py-3 border border-[#141414]/20 rounded hover:bg-[#141414]/10 transition-all text-center mt-2 font-bold"
-              >
-                CANCEL
+              <button onClick={() => setShowDeleteModal(false)} className="w-full px-4 py-4 opacity-50 hover:opacity-100 rounded-xl transition-all text-center mt-2 uppercase tracking-widest">
+                ABORT SEQUENCE
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Image Preview Modal */}
-      {previewFile && (
-        <div 
-          className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-8 backdrop-blur-sm cursor-pointer" 
-          onClick={() => setPreviewFile(null)}
-        >
-          <div className="bg-[#141414] border border-white/20 p-2 rounded shadow-2xl relative" onClick={e => e.stopPropagation()}>
-            <button 
-              className="absolute -top-4 -right-4 bg-red-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold shadow-lg"
-              onClick={() => setPreviewFile(null)}
-            >
-              ✕
-            </button>
-            <img 
-              src={`file:///${previewFile.replace(/\\/g, '/')}`} 
-              className="max-w-[80vw] max-h-[80vh] object-contain rounded" 
-              alt="Preview" 
-            />
-            <div className="absolute bottom-4 left-4 bg-black/70 text-white font-mono text-xs px-3 py-1 rounded">
-              {previewFile}
-            </div>
-          </div>
+          </motion.div>
         </div>
       )}
 
@@ -637,12 +677,12 @@ export default function Dashboard() {
 
 function StatCard({ icon, label, value, accent }: { icon: React.ReactNode, label: string, value: string | number, accent?: boolean }) {
   return (
-    <div className="border border-[#141414] p-4 rounded-lg bg-white/30 hover:bg-[#141414]/5 transition-all">
-      <div className="flex items-center gap-2 opacity-50 mb-2">
+    <div className="border border-[#141414]/10 p-6 rounded-xl bg-white/40 hover:bg-[#141414]/5 transition-all shadow-sm">
+      <div className="flex items-center gap-2 opacity-50 mb-3">
         {icon}
-        <span className="text-[9px] font-mono uppercase tracking-tighter">{label}</span>
+        <span className="text-[10px] font-mono uppercase tracking-widest">{label}</span>
       </div>
-      <div className={`text-2xl font-serif italic ${accent ? 'text-red-800' : ''}`}>{value}</div>
+      <div className={`text-3xl font-serif italic ${accent ? 'text-green-700' : 'text-[#141414]'}`}>{value}</div>
     </div>
   );
 }

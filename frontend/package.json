@@ -1,7 +1,7 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
@@ -19,12 +19,14 @@
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "jimp": "^1.6.1",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "sharp": "^0.34.5",
     "vite": "^6.2.3"
   },
   "devDependencies": {
@@ -43,8 +45,9 @@
     "wait-on": "^9.0.10"
   },
   "build": {
-    "appId": "com.scandupe.app",
-    "productName": "ScanDupe",
+    "appId": "com.aortacore.engine",
+    "productName": "AortaCore Engine",
+    "icon": "electron/AC-LOGO.png",
     "directories": {
       "output": "release2"
     },

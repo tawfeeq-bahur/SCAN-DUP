@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, ShieldAlert, Cpu, Eraser, FileWarning } from 'lucide-react';
+import { Trash2, ShieldAlert, Cpu, Eraser, FileWarning, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const formatBytes = (bytes: number) => {
@@ -16,6 +16,7 @@ export default function JunkSweeper() {
   const [files, setFiles] = useState<any[]>([]);
   const [progress, setProgress] = useState<any>(null);
   const [hasScanned, setHasScanned] = useState(false);
+  const [displayLimit, setDisplayLimit] = useState(100);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -38,6 +39,7 @@ export default function JunkSweeper() {
     setIsScanning(true);
     setHasScanned(true);
     setFiles([]);
+    setDisplayLimit(100);
     try {
       const res = await fetch('http://localhost:8080/api/junk/scan');
       if (res.ok) {
@@ -87,7 +89,7 @@ export default function JunkSweeper() {
 
   return (
     <div className="space-y-8 pb-12">
-      <header className="flex justify-between items-end pb-6 border-b border-[#141414]/20">
+      <header className="flex justify-between items-end pb-6 border-b border-[#141414]/10">
         <div>
           <h2 className="font-serif italic text-4xl">System Sweeper</h2>
           <p className="font-mono text-xs opacity-60 uppercase tracking-widest mt-2">
@@ -95,17 +97,17 @@ export default function JunkSweeper() {
           </p>
         </div>
         <div className="text-right">
-          <div className="font-serif italic text-3xl text-purple-700 flex items-center gap-2 justify-end">
+          <div className="font-serif italic text-3xl text-[#141414] flex items-center gap-2 justify-end">
             <Trash2 className={isScanning ? "animate-bounce" : ""} /> {files.length} JUNK FILES
           </div>
         </div>
       </header>
 
       {/* Hero Control Panel */}
-      <div className="bg-[#141414] rounded-xl p-8 text-[#E4E3E0] shadow-2xl relative overflow-hidden flex flex-col items-center justify-center text-center">
+      <div className={`rounded-xl p-8 text-[#E4E3E0] shadow-2xl relative overflow-hidden flex flex-col items-center justify-center text-center transition-all bg-[#141414]`}>
         
         {/* Background decorative elements */}
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-600 via-pink-600 to-red-600" />
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#E4E3E0]/20 to-transparent" />
         <div className="absolute -right-20 -top-20 opacity-5">
           <Cpu size={200} />
         </div>
@@ -128,7 +130,7 @@ export default function JunkSweeper() {
           <button
             onClick={startScan}
             disabled={isScanning || isCleaning}
-            className="bg-white/10 hover:bg-white/20 text-white font-mono text-xs uppercase tracking-widest px-8 py-4 rounded transition-all disabled:opacity-50 flex items-center gap-2"
+            className="bg-white/10 hover:bg-white/20 text-[#E4E3E0] font-mono text-xs uppercase tracking-widest px-8 py-4 rounded transition-all disabled:opacity-50 flex items-center gap-2"
           >
             {isScanning ? (
               <><motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, ease: "linear", duration: 1 }}><Search size={16} /></motion.div> SCANNING...</>
@@ -145,7 +147,7 @@ export default function JunkSweeper() {
                 exit={{ opacity: 0, scale: 0.8 }}
                 onClick={executeClean}
                 disabled={isCleaning}
-                className="bg-gradient-to-r from-red-600 to-purple-600 hover:from-red-500 hover:to-purple-500 text-white font-mono text-xs uppercase tracking-widest px-12 py-4 rounded transition-all shadow-[0_0_20px_rgba(220,38,38,0.4)] flex items-center gap-2"
+                className="bg-red-600 hover:bg-red-700 text-[#E4E3E0] font-mono text-xs uppercase tracking-widest px-12 py-4 rounded transition-all shadow-[0_0_20px_rgba(220,38,38,0.3)] flex items-center gap-2"
               >
                 {isCleaning ? "ERASING..." : <><Eraser size={16} /> DEEP CLEAN SYSTEM</>}
               </motion.button>
@@ -161,20 +163,20 @@ export default function JunkSweeper() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-purple-900/10 border border-purple-500/30 rounded-lg p-6 font-mono text-xs overflow-hidden"
+            className="bg-[#141414]/5 border border-[#141414]/10 rounded-lg p-6 font-mono text-xs overflow-hidden"
           >
-            <div className="flex justify-between uppercase text-purple-700 font-bold mb-3">
+            <div className="flex justify-between uppercase text-[#141414] font-bold mb-3">
               <span className="flex items-center gap-2"><ShieldAlert size={14} className="animate-pulse" /> {isCleaning ? "ERASING JUNK" : "SCANNING DIRECTORIES"}</span>
               <span>{formatBytes(progress.bytesScanned)} PROCESSED</span>
             </div>
             <div className="w-full h-2 bg-[#141414]/10 rounded-full overflow-hidden mb-3">
               <motion.div 
-                className="h-full bg-gradient-to-r from-purple-500 to-pink-500" 
+                className="h-full bg-[#141414]" 
                 animate={{ width: '100%' }} 
                 transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
               />
             </div>
-            <div className="truncate opacity-50 text-[10px]">Target: {progress.currentFile}</div>
+            <div className="truncate opacity-50 text-[10px] text-[#141414]">Target: {progress.currentFile}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -193,16 +195,67 @@ export default function JunkSweeper() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: index * 0.1 }}
-                className="bg-white/50 border border-[#141414]/20 rounded-xl p-6 relative overflow-hidden group hover:border-purple-500 transition-colors"
+                className="bg-white/40 border border-[#141414]/10 rounded-xl p-6 relative overflow-hidden group hover:border-[#c2a477] transition-colors"
               >
-                <div className="absolute top-0 left-0 w-1 h-full bg-purple-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute top-0 left-0 w-1 h-full bg-[#141414] opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div className="flex justify-between items-start mb-4">
-                  <div className="font-mono text-xs uppercase tracking-widest opacity-60">{cat}</div>
-                  <div className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-[10px] font-mono font-bold">{data.count} Files</div>
+                  <div className="font-mono text-xs uppercase tracking-widest opacity-60 text-[#141414]">{cat}</div>
+                  <div className="bg-[#141414]/10 text-[#141414] px-2 py-1 rounded text-[10px] font-mono font-bold">{data.count} Files</div>
                 </div>
-                <div className="font-serif italic text-4xl text-[#141414]">{formatBytes(data.size)}</div>
+                <div className="font-serif italic text-4xl text-amber-500 drop-shadow-[0_0_10px_rgba(245,158,11,0.2)]">{formatBytes(data.size)}</div>
               </motion.div>
             ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* File List Preview */}
+      <AnimatePresence>
+        {!isScanning && files.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-4 mt-8"
+          >
+            <div className="font-mono text-xs opacity-50 uppercase tracking-widest px-2">
+              Previewing {Math.min(displayLimit, files.length)} of {files.length} Files
+            </div>
+            
+            {files.slice(0, displayLimit).map((file, index) => (
+              <div
+                key={file.path + index}
+                className="group bg-white/40 border border-[#141414]/10 p-3 rounded-lg flex items-center justify-between hover:bg-white/40 transition-colors"
+              >
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className="w-6 h-6 rounded bg-[#141414]/5 text-[#141414]/50 flex items-center justify-center font-mono text-[9px] shrink-0">
+                    {index + 1}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-mono text-[10px] opacity-70 truncate" title={file.path}>
+                      {file.path}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 shrink-0 pl-4">
+                  <div className="bg-[#141414]/5 px-2 py-1 rounded font-mono text-[9px] uppercase opacity-60">
+                    {file.category}
+                  </div>
+                  <div className="font-serif italic text-lg text-[#141414] min-w-[80px] text-right">
+                    {formatBytes(file.size)}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {displayLimit < files.length && (
+              <button 
+                onClick={() => setDisplayLimit(prev => prev + 100)}
+                className="w-full py-4 mt-4 border border-dashed border-[#141414]/10 rounded-lg text-[#141414]/50 hover:bg-[#141414]/5 hover:text-[#141414] transition-all font-mono text-xs uppercase tracking-widest"
+              >
+                Load 100 More
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

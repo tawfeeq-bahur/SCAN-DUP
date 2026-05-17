@@ -31,3 +31,7 @@ release/
 # OS
 .DS_Store
 Thumbs.db
+
+*.exe
+*.asar
+/release2/

@@ -21,16 +21,20 @@ function createWindow() {
       contextIsolation: false,
       webSecurity: false
     },
-    title: 'ScanDupe - Duplicate File Finder',
-    backgroundColor: '#0f172a'
+    title: 'AortaCore Engine',
+    icon: path.join(__dirname, 'AC-LOGO.png'),
+    backgroundColor: '#0f172a',
+    autoHideMenuBar: true
   });
 
   if (isDev) {
     mainWindow.loadURL('http://localhost:3000');
-    mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+  
+  // ALWAYS open devtools for debugging right now
+  mainWindow.webContents.openDevTools();
 }
 
 function checkServerReady(port) {

@@ -88,7 +88,7 @@ export default function StorageRadar() {
 
   return (
     <div className="space-y-8 pb-12">
-      <header className="flex justify-between items-end pb-6 border-bottom border-[#141414]/20">
+      <header className="flex justify-between items-end pb-6 border-bottom border-[#141414]/10">
         <div>
           <h2 className="font-serif italic text-4xl">Storage Radar</h2>
           <p className="font-mono text-xs opacity-60 uppercase tracking-widest mt-2">
@@ -96,43 +96,34 @@ export default function StorageRadar() {
           </p>
         </div>
         <div className="text-right">
-          <div className="font-serif italic text-3xl text-orange-700 flex items-center gap-2 justify-end">
+          <div className="font-serif italic text-3xl text-[#141414] flex items-center gap-2 justify-end">
             <Target className={isScanning ? "animate-spin" : ""} /> {files.length} HOGS
           </div>
         </div>
       </header>
 
       {/* Control Panel */}
-      <div className="bg-[#141414] p-6 rounded-lg text-[#E4E3E0] flex gap-4 items-end shadow-xl">
-        <div className="flex-1 space-y-2">
-          <label className="font-mono text-[10px] uppercase tracking-widest opacity-60">
-            Target Directory
-          </label>
-          <input
-            type="text"
-            value={path}
-            onChange={(e) => setPath(e.target.value)}
-            className="w-full bg-[#E4E3E0] text-[#141414] font-mono text-sm px-4 py-3 rounded outline-none border-2 border-transparent focus:border-orange-500 transition-colors"
-            placeholder="e.g., C:\Users\Downloads"
-            disabled={isScanning}
-          />
-        </div>
-        <button
+      <div className="flex bg-white/40 border border-[#141414]/10 p-2 rounded-xl backdrop-blur-md shadow-sm focus-within:border-[#D6B98C] focus-within:shadow-[0_0_15px_rgba(214,185,140,0.1)] transition-all">
+        <label className="font-mono text-[10px] uppercase tracking-widest opacity-60 self-center pl-4 pr-2">
+          TARGET DIRECTORY
+        </label>
+        <input 
+          type="text" 
+          value={path}
+          onChange={(e) => setPath(e.target.value)}
+          className="flex-1 bg-transparent border-none outline-none font-mono text-sm uppercase px-4 text-[#141414] placeholder:opacity-40"
+          placeholder="E.G. C:\USERS\DOWNLOADS..."
+          disabled={isScanning}
+        />
+        <button 
           onClick={startScan}
           disabled={isScanning}
-          className="bg-orange-600 hover:bg-orange-500 text-white font-mono text-xs uppercase tracking-widest px-8 py-3 rounded transition-colors disabled:opacity-50 flex items-center gap-2 h-[46px]"
+          className="bg-[#141414] text-[#E4E3E0] px-8 py-3 rounded-lg flex items-center gap-2 hover:bg-[#141414]/90 hover:scale-[1.02] active:scale-[0.98] transition-all font-mono text-xs uppercase tracking-widest shadow-md"
         >
           {isScanning ? (
-            <>
-              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, ease: "linear", duration: 1 }}>
-                <Search size={16} />
-              </motion.div>
-              SCANNING...
-            </>
+            <><motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, ease: "linear", duration: 1 }}><Search size={16} /></motion.div> SCANNING...</>
           ) : (
-            <>
-              <Target size={16} /> ENGAGE RADAR
-            </>
+            <><Target size={16} /> ENGAGE RADAR</>
           )}
         </button>
       </div>
@@ -152,7 +143,7 @@ export default function StorageRadar() {
             </div>
             <div className="w-full h-1 bg-[#141414]/10 rounded-full overflow-hidden mb-2">
               <motion.div 
-                className="h-full bg-orange-500" 
+                className="h-full bg-[#141414]" 
                 animate={{ width: '100%' }} 
                 transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
               />
@@ -173,12 +164,12 @@ export default function StorageRadar() {
                 <button 
                   key={cat} 
                   onClick={() => setSelectedCategory(isSelected ? null : cat)}
-                  className={`border rounded-lg p-4 flex flex-col items-center justify-center text-center transition-all ${isSelected ? 'bg-orange-600/10 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.3)]' : 'bg-white/50 border-[#141414]/20 hover:border-orange-500/50'}`}
+                  className={`border rounded-lg p-4 flex flex-col items-center justify-center text-center transition-all ${isSelected ? 'bg-[#141414]/10 border-[#D6B98C] shadow-[0_0_15px_rgba(214,185,140,0.3)]' : 'bg-white/40 border-[#141414]/10 hover:border-[#D6B98C]/50'}`}
                 >
-                  <div className={`flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest mb-2 ${isSelected ? 'text-orange-600 font-bold' : 'opacity-60'}`}>
+                  <div className={`flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest mb-2 ${isSelected ? 'text-[#141414] font-bold' : 'opacity-60'}`}>
                     <PieChart size={12} /> {cat}
                   </div>
-                  <div className="font-serif italic text-2xl text-orange-700">{formatBytes(data.size)}</div>
+                  <div className="font-serif italic text-2xl text-[#141414]">{formatBytes(data.size)}</div>
                   <div className="font-mono text-[10px] opacity-40 mt-1">{data.count} Files</div>
                 </button>
               );
@@ -201,25 +192,25 @@ export default function StorageRadar() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ delay: index * 0.02 }}
-                className="group relative bg-white/50 border border-[#141414]/20 p-4 rounded-lg overflow-hidden flex items-center justify-between"
+                className={`group relative bg-white/40 border p-4 rounded-lg overflow-hidden flex items-center justify-between transition-all ${index === 0 ? 'border-[#D6B98C]/50 shadow-[0_0_20px_rgba(214,185,140,0.15)]' : 'border-[#141414]/10'}`}
               >
                 {/* Background Bar */}
                 <motion.div 
-                  className="absolute left-0 top-0 bottom-0 bg-orange-600/10 -z-10"
+                  className={`absolute left-0 top-0 bottom-0 -z-10 ${index === 0 ? 'bg-[#141414]/20' : (index < 3 ? 'bg-amber-500/10' : 'bg-[#141414]/5')}`}
                   initial={{ width: 0 }}
                   animate={{ width: `${widthPercent}%` }}
                   transition={{ type: "spring", stiffness: 50, delay: index * 0.05 }}
                 />
                 
                 <div className="flex items-center gap-4 flex-1 min-w-0 pr-4">
-                  <div className="w-8 h-8 rounded bg-[#141414] text-[#E4E3E0] flex items-center justify-center font-mono text-[10px] shrink-0">
+                  <div className={`w-8 h-8 rounded text-[#E4E3E0] flex items-center justify-center font-mono text-[10px] shrink-0 font-bold ${index === 0 ? 'bg-[#141414] shadow-[0_0_10px_rgba(20,20,20,0.2)]' : (index < 3 ? 'bg-[#141414]/60' : 'bg-[#E4E3E0] text-[#141414]')}`}>
                     #{index + 1}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium text-sm truncate" title={file.path}>
+                    <div className="font-medium text-sm truncate text-[#141414]" title={file.path}>
                       {file.path.split('\\').pop() || file.path.split('/').pop()}
                     </div>
-                    <div className="font-mono text-[10px] opacity-50 truncate mt-1">
+                    <div className="font-mono text-[10px] opacity-50 truncate mt-1 text-[#141414]">
                       {file.path}
                     </div>
                   </div>
@@ -227,17 +218,17 @@ export default function StorageRadar() {
 
                 <div className="flex items-center gap-6 shrink-0">
                   <div className="text-right">
-                    <div className="font-serif italic text-xl text-orange-700">
+                    <div className={`font-serif italic text-xl ${index === 0 ? 'text-[#141414] drop-shadow-[0_0_5px_rgba(214,185,140,0.5)]' : (index < 3 ? 'text-amber-500' : 'text-[#7A7A7A]')}`}>
                       {formatBytes(file.size)}
                     </div>
-                    <div className="font-mono text-[10px] opacity-50 uppercase tracking-widest">
+                    <div className="font-mono text-[10px] opacity-50 uppercase tracking-widest text-[#141414]">
                       {widthPercent.toFixed(1)}% Relative Size
                     </div>
                   </div>
                   
                   <button 
                     onClick={() => handleDelete(file.path)}
-                    className="opacity-0 group-hover:opacity-100 p-2 text-red-600 hover:bg-red-600 hover:text-white rounded transition-all"
+                    className="opacity-0 group-hover:opacity-100 p-2 text-red-600 hover:bg-red-600 hover:text-[#E4E3E0] rounded transition-all shadow-[0_0_10px_rgba(185,106,106,0)] hover:shadow-[0_0_10px_rgba(185,106,106,0.3)]"
                     title="Move to Recycle Bin"
                   >
                     <Trash2 size={18} />
@@ -249,7 +240,7 @@ export default function StorageRadar() {
         </AnimatePresence>
         
         {!isScanning && files.length === 0 && (
-          <div className="py-24 text-center font-mono text-sm opacity-50 border-2 border-dashed border-[#141414]/20 rounded-lg">
+          <div className="py-24 text-center font-mono text-sm opacity-50 border-2 border-dashed border-[#141414]/10 rounded-lg">
             <FileWarning className="mx-auto mb-4 opacity-50" size={32} />
             NO DATA. RUN RADAR TO DETECT STORAGE HOGS.
           </div>

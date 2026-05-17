@@ -15,6 +15,7 @@ public class Main {
         com.dupfinder.service.DatabaseService.init();
         
         Javalin app = Javalin.create(config -> {
+            config.http.maxRequestSize = 50_000_000L; // 50MB for large bulk deletes
             config.bundledPlugins.enableCors(cors -> {
                 cors.addRule(it -> {
                     it.anyHost();
@@ -145,7 +146,48 @@ public class Main {
             ctx.json(Map.of("largestFiles", mappedFiles));
         });
         
+        com.dupfinder.engine.JunkSweeperEngine junkEngine = new com.dupfinder.engine.JunkSweeperEngine();
+        app.get("/api/junk/scan", ctx -> {
+            List<FileRecord> junkFiles = junkEngine.scanForJunk();
+            List<Map<String, Object>> mappedJunk = junkFiles.stream().map(record -> {
+                String cat = "Temp File";
+                if (record.getPath().toString().endsWith(".log")) cat = "Log File";
+                else if (record.getPath().toString().endsWith(".bak") || record.getPath().toString().endsWith(".old")) cat = "Backup File";
+                else if (record.getPath().toString().contains("Cache")) cat = "Cache";
+                
+                return Map.<String, Object>of(
+                    "path", record.getPath().toString(),
+                    "size", record.getSize(),
+                    "category", cat
+                );
+            }).toList();
+            
+            ctx.json(Map.of("junkFiles", mappedJunk));
+        });
+        
+        com.dupfinder.engine.SmartOrganizerEngine organizerEngine = new com.dupfinder.engine.SmartOrganizerEngine();
+        app.post("/api/organizer/analyze", ctx -> {
+            ScanRequest req = ctx.bodyAsClass(ScanRequest.class);
+            Path startPath = Paths.get(req.path);
+            if (!java.nio.file.Files.exists(startPath)) {
+                ctx.status(400).json(Map.of("error", "Directory does not exist"));
+                return;
+            }
+            List<com.dupfinder.engine.SmartOrganizerEngine.MoveOperation> ops = organizerEngine.analyzeDirectory(startPath);
+            ctx.json(Map.of("operations", ops));
+        });
+
+        app.post("/api/organizer/execute", ctx -> {
+            ExecuteOrganizerRequest req = ctx.bodyAsClass(ExecuteOrganizerRequest.class);
+            int moved = organizerEngine.executeMoves(req.operations);
+            ctx.json(Map.of("movedCount", moved));
+        });
+
         System.out.println("Server running on http://localhost:8080");
+    }
+
+    public static class ExecuteOrganizerRequest {
+        public List<com.dupfinder.engine.SmartOrganizerEngine.MoveOperation> operations;
     }
 
     public static class ScheduleRequest {

@@ -14,7 +14,8 @@ import {
   History,
   AlertCircle,
   Target,
-  Eraser
+  Eraser,
+  FolderTree
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Dashboard from './components/Dashboard';
@@ -23,8 +24,9 @@ import SettingsView from './components/SettingsView';
 import SystemMonitor from './components/SystemMonitor';
 import StorageRadar from './components/StorageRadar';
 import JunkSweeper from './components/JunkSweeper';
+import SmartOrganizer from './components/SmartOrganizer';
 
-export type View = 'monitor' | 'dashboard' | 'radar' | 'junk' | 'history' | 'settings';
+export type View = 'monitor' | 'dashboard' | 'radar' | 'junk' | 'organizer' | 'history' | 'settings';
 
 export default function App() {
   const [activeView, setActiveView] = useState<View>('monitor');
@@ -54,10 +56,10 @@ export default function App() {
       <nav className="w-64 border-r border-[#141414] flex flex-col pt-8 bg-[#E4E3E0] relative z-10">
         <div className="px-6 mb-12">
           <h1 className="font-serif italic text-2xl tracking-tight flex items-center gap-2">
-             OmniClean Pro
+             AortaCore Engine
           </h1>
           <p className="text-[10px] font-mono opacity-50 uppercase tracking-widest mt-1">
-            System Optimizer v2.0
+            Core Optimizer v2.0
           </p>
         </div>
 
@@ -85,6 +87,12 @@ export default function App() {
             label="Junk Sweeper" 
             active={activeView === 'junk'} 
             onClick={() => setActiveView('junk')} 
+          />
+          <NavItem 
+            icon={<FolderTree size={18} />} 
+            label="Smart Organizer" 
+            active={activeView === 'organizer'} 
+            onClick={() => setActiveView('organizer')} 
           />
           <NavItem 
             icon={<History size={18} />} 
@@ -156,6 +164,18 @@ export default function App() {
           className={`absolute inset-0 p-8 max-w-6xl mx-auto overflow-auto ${activeView === 'junk' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
         >
           <JunkSweeper />
+        </motion.div>
+
+        <motion.div
+          animate={{ 
+            opacity: activeView === 'organizer' ? 1 : 0, 
+            y: activeView === 'organizer' ? 0 : 10,
+            scale: activeView === 'organizer' ? 1 : 0.98
+          }}
+          transition={{ duration: 0.2 }}
+          className={`absolute inset-0 p-8 max-w-6xl mx-auto overflow-auto ${activeView === 'organizer' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
+        >
+          <SmartOrganizer />
         </motion.div>
 
         <motion.div
