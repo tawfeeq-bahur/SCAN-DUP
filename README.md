@@ -16,6 +16,13 @@
 
 ---
 
+## Current Status
+
+- **Version:** 0.1.0
+- **Latest build artifacts:** [frontend/release2/AortaCore Engine Setup 0.1.0.exe](frontend/release2/AortaCore Engine Setup 0.1.0.exe) and [frontend/release2/AortaCore Engine 0.1.0.exe](frontend/release2/AortaCore Engine 0.1.0.exe)
+- **Build date:** 2026-05-17
+- **Notes:** The old `frontend/release/` folder was removed and replaced by `frontend/release2/`. The backend fat-jar (`backend/target/duplicate-file-finder-1.0-SNAPSHOT-jar-with-dependencies.jar`) is packaged and included in the installer via `extraResources`.
+
 ## ⚡ Features
 
 *   **Multi-Threaded Java Engine:** Utilizes concurrent `MD5` hashing and size-based pre-filtering to scan millions of files with zero UI freezing.
