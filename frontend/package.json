@@ -19,6 +19,8 @@
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "react": "^19.0.1",
@@ -44,7 +46,7 @@
     "appId": "com.scandupe.app",
     "productName": "ScanDupe",
     "directories": {
-      "output": "release"
+      "output": "release2"
     },
     "files": [
       "dist/**/*",
@@ -55,11 +57,16 @@
       {
         "from": "../backend/target",
         "to": ".",
-        "filter": ["duplicate-file-finder-1.0-SNAPSHOT-jar-with-dependencies.jar"]
+        "filter": [
+          "duplicate-file-finder-1.0-SNAPSHOT-jar-with-dependencies.jar"
+        ]
       }
     ],
     "win": {
-      "target": ["nsis", "portable"]
+      "target": [
+        "nsis",
+        "portable"
+      ]
     }
   }
 }

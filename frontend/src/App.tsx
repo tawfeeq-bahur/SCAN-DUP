@@ -12,17 +12,20 @@ import {
   Terminal,
   Code2,
   History,
-  AlertCircle
+  AlertCircle,
+  Target
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Dashboard from './components/Dashboard';
 import ScanHistory from './components/ScanHistory';
 import SettingsView from './components/SettingsView';
+import SystemMonitor from './components/SystemMonitor';
+import StorageRadar from './components/StorageRadar';
 
-export type View = 'dashboard' | 'history' | 'settings';
+export type View = 'monitor' | 'dashboard' | 'radar' | 'history' | 'settings';
 
 export default function App() {
-  const [activeView, setActiveView] = useState<View>('dashboard');
+  const [activeView, setActiveView] = useState<View>('monitor');
   const [theme, setTheme] = useState(localStorage.getItem('appTheme') || 'light');
 
   // Listen for theme changes from SettingsView
@@ -49,7 +52,7 @@ export default function App() {
       <nav className="w-64 border-r border-[#141414] flex flex-col pt-8 bg-[#E4E3E0] relative z-10">
         <div className="px-6 mb-12">
           <h1 className="font-serif italic text-2xl tracking-tight flex items-center gap-2">
-             SCANDUPE
+             OmniClean Pro
           </h1>
           <p className="text-[10px] font-mono opacity-50 uppercase tracking-widest mt-1">
             System Optimizer v2.0
@@ -58,14 +61,26 @@ export default function App() {
 
         <div className="flex-1 px-3 space-y-1">
           <NavItem 
-            icon={<LayoutDashboard size={18} />} 
-            label="Dashboard" 
+            icon={<Activity size={18} />} 
+            label="System Monitor" 
+            active={activeView === 'monitor'} 
+            onClick={() => setActiveView('monitor')} 
+          />
+          <NavItem 
+            icon={<FolderSearch size={18} />} 
+            label="Duplicate Scanner" 
             active={activeView === 'dashboard'} 
             onClick={() => setActiveView('dashboard')} 
           />
           <NavItem 
+            icon={<Target size={18} />} 
+            label="Storage Radar" 
+            active={activeView === 'radar'} 
+            onClick={() => setActiveView('radar')} 
+          />
+          <NavItem 
             icon={<History size={18} />} 
-            label="Scan History" 
+            label="Scan History"  
             active={activeView === 'history'} 
             onClick={() => setActiveView('history')} 
           />
@@ -89,6 +104,18 @@ export default function App() {
       <main className="flex-1 overflow-hidden relative">
         <motion.div
           animate={{ 
+            opacity: activeView === 'monitor' ? 1 : 0, 
+            y: activeView === 'monitor' ? 0 : 10,
+            scale: activeView === 'monitor' ? 1 : 0.98
+          }}
+          transition={{ duration: 0.2 }}
+          className={`absolute inset-0 p-8 max-w-6xl mx-auto overflow-auto ${activeView === 'monitor' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
+        >
+          <SystemMonitor isActive={activeView === 'monitor'} />
+        </motion.div>
+
+        <motion.div
+          animate={{ 
             opacity: activeView === 'dashboard' ? 1 : 0, 
             y: activeView === 'dashboard' ? 0 : 10,
             scale: activeView === 'dashboard' ? 1 : 0.98
@@ -97,6 +124,18 @@ export default function App() {
           className={`absolute inset-0 p-8 max-w-6xl mx-auto overflow-auto ${activeView === 'dashboard' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
         >
           <Dashboard />
+        </motion.div>
+
+        <motion.div
+          animate={{ 
+            opacity: activeView === 'radar' ? 1 : 0, 
+            y: activeView === 'radar' ? 0 : 10,
+            scale: activeView === 'radar' ? 1 : 0.98
+          }}
+          transition={{ duration: 0.2 }}
+          className={`absolute inset-0 p-8 max-w-6xl mx-auto overflow-auto ${activeView === 'radar' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
+        >
+          <StorageRadar />
         </motion.div>
 
         <motion.div

@@ -115,10 +115,34 @@ public class Main {
             ctx.json(com.dupfinder.service.DatabaseService.getCleanupHistory());
         });
         
+        com.dupfinder.service.SystemMonitorService monitorService = new com.dupfinder.service.SystemMonitorService();
+        app.get("/api/system/metrics", ctx -> {
+            ctx.json(monitorService.getSystemMetrics());
+        });
+        
         app.post("/api/schedule", ctx -> {
             ScheduleRequest req = ctx.bodyAsClass(ScheduleRequest.class);
             com.dupfinder.service.BackgroundScheduler.configureSchedule(req.mode, req.path);
             ctx.json(Map.of("status", "success", "mode", req.mode, "path", req.path));
+        });
+        
+        com.dupfinder.engine.StorageRadarEngine radarEngine = new com.dupfinder.engine.StorageRadarEngine();
+        app.post("/api/radar", ctx -> {
+            ScanRequest req = ctx.bodyAsClass(ScanRequest.class);
+            Path startPath = Paths.get(req.path);
+            if (!java.nio.file.Files.exists(startPath)) {
+                ctx.status(400).json(Map.of("error", "Directory does not exist"));
+                return;
+            }
+            List<FileRecord> largestFiles = radarEngine.findLargestFiles(startPath, 50);
+            
+            List<Map<String, Object>> mappedFiles = largestFiles.stream().map(record -> Map.<String, Object>of(
+                    "path", record.getPath().toString(),
+                    "size", record.getSize(),
+                    "category", record.getCategory() != null ? record.getCategory() : "Other"
+            )).toList();
+            
+            ctx.json(Map.of("largestFiles", mappedFiles));
         });
         
         System.out.println("Server running on http://localhost:8080");
