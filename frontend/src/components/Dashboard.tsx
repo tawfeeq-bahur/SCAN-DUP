@@ -73,50 +73,6 @@ export default function Dashboard() {
   const scanRunRef = React.useRef(0);
   const cancelRequestedRef = React.useRef(false);
 
-  // ── Reveal a single file in Windows Explorer ──────────────────────────────
-  const revealFile = async (filePath: string) => {
-    try {
-      const electron = (window as any).require ? (window as any).require('electron') : null;
-      const ipc = electron?.ipcRenderer;
-      if (ipc?.invoke) {
-        await ipc.invoke('reveal-file', filePath);
-      } else {
-        // Fallback: try shell.openPath on the parent directory
-        const shell = electron?.shell;
-        const parentDir = filePath.replace(/[\\/][^\\/]+$/, '');
-        shell?.openPath(parentDir);
-      }
-    } catch (err) {
-      console.error('reveal failed', err);
-    }
-  };
-
-  // ── Delete a single file immediately ─────────────────────────────────────
-  const deleteSingleFile = async (e: React.MouseEvent, filePath: string, groupHash: string) => {
-    e.stopPropagation();
-    try {
-      const response = await fetch('http://localhost:8080/api/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paths: [filePath], moveToTrash: true, bytesRecovered: 0 }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const deletedSet = new Set<string>(data.deletedPaths || [filePath]);
-        const updatedDuplicates = duplicates
-          .map(g => ({ ...g, files: g.files.filter(f => !deletedSet.has(f.path)) }))
-          .filter(g => g.files.length > 1);
-        setDuplicates(updatedDuplicates);
-        if (selectedFilePreview && deletedSet.has(selectedFilePreview.file.path)) {
-          setSelectedFilePreview(null);
-        }
-        setSelectedFiles(prev => { const s = new Set(prev); deletedSet.forEach(p => s.delete(p)); return s; });
-      }
-    } catch (err) {
-      console.error('delete single file failed', err);
-    }
-  };
-
   const sortedDuplicates = React.useMemo(() => {
     if (selectedFiles.size === 0) return duplicates;
     return [...duplicates].sort((a, b) => {
@@ -373,70 +329,66 @@ export default function Dashboard() {
   const reclaimableValue = Number(scanStats.totalSize) || 0;
 
   return (
-    <div className="space-y-4 pb-12 relative min-h-screen overflow-x-hidden">
+    <div className="space-y-8 pb-12 relative min-h-screen overflow-x-hidden">
       
-      {/* 1. TOP ACTION BAR — path bar + bulk controls in one row */}
-      <header className="flex flex-col gap-3 pb-4 border-b border-[#141414]/10 relative z-20">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="font-serif italic text-3xl text-[#141414] shrink-0">System Intelligence</h2>
-          {/* Bulk controls inline on the right — only when results exist */}
+      {/* 1. TOP ACTION BAR HIERARCHY */}
+      <header className="flex flex-col gap-6 pb-6 border-b border-[#141414]/10 relative z-20">
+        <div className="flex justify-between items-start">
+          <div className="flex-1 max-w-2xl">
+            <h2 className="font-serif italic text-4xl mb-4 text-[#141414]">System Intelligence</h2>
+            <div className="flex bg-white/40 border border-[#141414]/10 p-2 rounded-xl backdrop-blur-md shadow-sm focus-within:border-[#D6B98C] focus-within:shadow-[0_0_15px_rgba(214,185,140,0.1)] transition-all">
+              <input 
+                type="text" 
+                value={scanPath}
+                onChange={(e) => setScanPath(e.target.value)}
+                className="flex-1 bg-transparent border-none outline-none font-mono text-sm uppercase px-4 text-[#141414] placeholder:opacity-40"
+                placeholder="ENTER TARGET DIRECTORY..."
+              />
+              <button onClick={selectFolder} aria-label="Select Folder" title="Select folder" className="px-3 py-2 rounded-md hover:bg-[#141414]/5 transition-colors">
+                <Folder size={16} />
+              </button>
+              <button 
+                onClick={handleStartScan}
+                disabled={isScanning}
+                className="bg-[#141414] text-[#E4E3E0] px-8 py-3 rounded-lg flex items-center gap-2 hover:bg-[#141414]/90 hover:scale-[1.02] active:scale-[0.98] transition-all font-mono text-xs uppercase tracking-widest shadow-md"
+              >
+                {isScanning ? <><Activity size={14} className="animate-spin" /> SCANNING</> : <><Search size={14} /> ANALYZE PATH</>}
+              </button>
+              {isScanning && (
+                <button
+                  onClick={requestStop}
+                  disabled={cancelRequested}
+                  className="ml-2 bg-red-600 text-white px-6 py-3 rounded-lg flex items-center gap-2 hover:bg-red-700 active:scale-[0.98] transition-all font-mono text-xs uppercase tracking-widest shadow-md disabled:opacity-60"
+                >
+                  <X size={14} /> {cancelRequested ? 'STOPPING' : 'STOP'}
+                </button>
+              )}
+            </div>
+            {errorMsg && <p className="text-red-500 text-xs font-mono mt-2 ml-2">{errorMsg}</p>}
+            <div className="flex gap-4 font-mono text-[10px] uppercase opacity-50 mt-2 ml-2">
+              {scanTime !== null && <span>Fetch Time: {(scanTime / 1000).toFixed(2)}s</span>}
+              {deleteStats !== null && <span className="text-red-600 font-bold">Deleted {deleteStats.count} files in {(deleteStats.time / 1000).toFixed(2)}s</span>}
+            </div>
+          </div>
+
+          {/* 2. SECONDARY ACTIONS (Muted Red) */}
           {duplicates.length > 0 && (
-            <div className="flex items-center gap-2 ml-auto">
-              <button
-                onClick={handleSelectAll}
-                className="px-3 py-2 bg-white/40 border border-[#141414]/10 hover:bg-[#141414]/5 rounded-lg font-mono text-[10px] uppercase tracking-widest transition-colors text-[#141414]"
-              >
-                Select All
-              </button>
-              <button
-                onClick={handleDeleteSelected}
-                disabled={selectedFiles.size === 0 || isDeleting}
-                className={`px-4 py-2 rounded-lg font-mono text-[10px] uppercase tracking-widest transition-all flex items-center gap-2
-                  ${selectedFiles.size > 0
-                    ? 'bg-red-600 text-white hover:bg-[#9a3d3b] shadow-md hover:scale-[1.02] active:scale-[0.98]'
-                    : 'bg-[#141414]/5 text-[#141414]/30 cursor-not-allowed border border-[#141414]/10'}`}
-              >
-                <Trash2 size={12} /> Purge ({selectedFiles.size})
-              </button>
+            <div className="flex flex-col items-end gap-3 mt-4">
+              <div className="font-mono text-[10px] uppercase tracking-widest opacity-60">Bulk Control</div>
+              <div className="flex gap-2">
+                <button onClick={handleSelectAll} className="px-4 py-3 bg-white/40 border border-[#141414]/10 hover:bg-[#141414]/5 rounded-lg font-mono text-xs transition-colors text-[#141414]">
+                  SELECT ALL
+                </button>
+                <button 
+                  onClick={handleDeleteSelected}
+                  disabled={selectedFiles.size === 0 || isDeleting}
+                  className={`px-6 py-3 rounded-lg font-mono text-xs transition-all flex items-center gap-2 ${selectedFiles.size > 0 ? 'bg-red-600 text-white hover:bg-[#9a3d3b] shadow-lg shadow-[#B86A6A]/20 hover:scale-[1.02] active:scale-[0.98]' : 'bg-[#141414]/5 text-[#141414]/40 cursor-not-allowed border border-[#141414]/10'}`}
+                >
+                  <Trash2 size={14} /> PURGE SELECTED ({selectedFiles.size})
+                </button>
+              </div>
             </div>
           )}
-        </div>
-
-        {/* Path bar row */}
-        <div className="flex gap-2">
-          <div className="flex flex-1 bg-white/40 border border-[#141414]/10 p-1.5 rounded-xl backdrop-blur-md shadow-sm focus-within:border-[#D6B98C] focus-within:shadow-[0_0_12px_rgba(214,185,140,0.1)] transition-all">
-            <input
-              type="text"
-              value={scanPath}
-              onChange={(e) => setScanPath(e.target.value)}
-              className="flex-1 bg-transparent border-none outline-none font-mono text-sm uppercase px-4 text-[#141414] placeholder:opacity-40"
-              placeholder="ENTER TARGET DIRECTORY..."
-            />
-            <button onClick={selectFolder} aria-label="Select Folder" title="Select folder" className="px-3 py-2 rounded-md hover:bg-[#141414]/5 transition-colors">
-              <Folder size={16} />
-            </button>
-            <button
-              onClick={handleStartScan}
-              disabled={isScanning}
-              className="bg-[#141414] text-[#E4E3E0] px-7 py-2.5 rounded-lg flex items-center gap-2 hover:bg-[#141414]/90 hover:scale-[1.02] active:scale-[0.98] transition-all font-mono text-xs uppercase tracking-widest shadow-md"
-            >
-              {isScanning ? <><Activity size={13} className="animate-spin" /> Scanning</> : <><Search size={13} /> Analyze Path</>}
-            </button>
-            {isScanning && (
-              <button
-                onClick={requestStop}
-                disabled={cancelRequested}
-                className="ml-1.5 bg-red-600 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 hover:bg-red-700 active:scale-[0.98] transition-all font-mono text-xs uppercase tracking-widest disabled:opacity-60"
-              >
-                <X size={13} /> {cancelRequested ? 'Stopping' : 'Stop'}
-              </button>
-            )}
-          </div>
-        </div>
-        {errorMsg && <p className="text-red-500 text-[11px] font-mono ml-1">{errorMsg}</p>}
-        <div className="flex gap-4 font-mono text-[10px] uppercase opacity-40 ml-1">
-          {scanTime !== null && <span>Fetch: {(scanTime / 1000).toFixed(2)}s</span>}
-          {deleteStats !== null && <span className="text-red-500 font-bold">Deleted {deleteStats.count} files in {(deleteStats.time / 1000).toFixed(2)}s</span>}
         </div>
       </header>
 
@@ -459,21 +411,22 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
-      {/* STATS — compact height */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <StatCard icon={<HardDrive size={14} />} label="FILES ANALYZED" value={scanStats.files.toLocaleString()} />
-        <StatCard icon={<Layers size={14} />} label="DUPLICATE CLUSTERS" value={scanStats.duplicates} />
-        {/* Reclaimable — subtle glow, reduced dominance */}
-        <div className="border border-t-[2px] border-t-[#D6B98C] border-[#141414]/10 px-5 py-4 rounded-xl bg-white/40 hover:bg-[#141414]/5 transition-all relative overflow-hidden group shadow-[0_0_16px_rgba(214,185,140,0.12)]">
+      {/* STATS */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <StatCard icon={<HardDrive size={16} />} label="FILES ANALYZED" value={scanStats.files.toLocaleString()} />
+        <StatCard icon={<Layers size={16} />} label="DUPLICATE CLUSTERS" value={scanStats.duplicates} />
+        {/* 8. SPACE SAVED VISUALIZATION */}
+        <div className="border border-[#141414]/10 p-4 rounded-xl bg-white/40 hover:bg-[#141414]/5 transition-all relative overflow-hidden group">
+          <div className="absolute top-0 left-0 w-full h-1 bg-[#141414]/30 group-hover:bg-[#141414]/80 transition-colors" />
           <div className="flex items-center gap-2 opacity-50 mb-2">
-            <Database size={13} />
-            <span className="text-[10px] font-mono uppercase tracking-widest">Reclaimable</span>
+            <Database size={14} />
+            <span className="text-[9px] font-mono uppercase tracking-widest">RECLAIMABLE STORAGE</span>
           </div>
-          <div className="text-3xl font-serif italic font-bold text-[#141414]">
-            {scanStats.totalSize} <span className="text-lg opacity-60">GB</span>
+          <div className="text-3xl font-serif italic text-[#141414] flex items-center gap-3">
+             {scanStats.totalSize} GB
           </div>
           {reclaimableValue > 0 && (
-            <div className="mt-2 h-0.5 bg-[#141414]/10 rounded-full overflow-hidden">
+            <div className="mt-3 h-1 bg-[#141414]/10 rounded-full overflow-hidden">
               <motion.div
                 className="h-full bg-[#D6B98C]"
                 animate={{ x: ['-40%', '100%'] }}
@@ -483,7 +436,7 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-        <StatCard icon={<ShieldCheck size={14} />} label="SYSTEM HEALTH" value="OPTIMIZED" supportText="No integrity risks detected" />
+        <StatCard icon={<ShieldCheck size={16} />} label="SYSTEM HEALTH" value="OPTIMIZED" supportText="No integrity risks detected" />
       </div>
 
       {/* EMPTY STATE */}
@@ -536,47 +489,47 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
-      {/* 6. FILTER CHIPS & 5. ANALYTICS TOGGLE — compact strip */}
+      {/* 6. FILTER CHIPS & 5. ANALYTICS TOGGLE */}
       {duplicates.length > 0 && (
-        <div className="border border-white/[0.04] bg-white/[0.015] rounded-xl px-4 py-3 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-[#141414]/10 pb-6 gap-4 mt-6">
           <div className="flex flex-wrap gap-2 items-center">
-             <span className="font-mono text-[10px] uppercase opacity-40 tracking-widest mr-1">Filters:</span>
+             <span className="font-mono text-[10px] uppercase opacity-50 tracking-widest mr-2">SMART FILTERS:</span>
              {Array.from(new Set(Object.values(categoryMap))).sort().map(cat => {
                const isSelected = isCategoryFullySelected(cat);
                return (
                  <button
                    key={cat}
                    onClick={() => handleSelectCategory(cat, !isSelected)}
-                   className={`px-3 py-1 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all duration-300 border flex items-center gap-1.5
-                    ${isSelected
-                      ? 'bg-[#141414]/8 border-[#D6B98C]/70 text-[#141414] shadow-[0_0_8px_rgba(214,185,140,0.15)]'
-                      : 'bg-transparent border-white/[0.06] text-[#141414]/40 hover:border-[#141414]/15 hover:text-[#141414]/70'}`}
+                   className={`px-4 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all duration-300 border flex items-center gap-2
+                    ${isSelected 
+                      ? 'bg-[#141414]/10 border-[#D6B98C] text-[#141414] shadow-[0_0_15px_rgba(214,185,140,0.1)]' 
+                      : 'bg-white/40 border-[#141414]/10 text-[#141414]/60 hover:border-[#141414]/10 hover:bg-[#141414]/5'}`}
                  >
-                   {getCategoryIcon(cat, 11)}
+                   {getCategoryIcon(cat, 12)}
                    {cat}
                  </button>
                )
              })}
           </div>
-
-          <div className="bg-[#141414]/5 p-1 rounded-full flex font-mono text-[10px] relative shadow-inner shrink-0">
-            <motion.div
+          
+          <div className="bg-[#141414]/5 p-1 rounded-full flex font-mono text-xs relative shadow-inner">
+            <motion.div 
               className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#141414] rounded-full shadow-md z-0"
               animate={{ x: activeTab === 'list' ? 0 : '100%', left: activeTab === 'list' ? 4 : 0 }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             />
-            <button onClick={() => setActiveTab('list')} className={`relative z-10 px-5 py-1.5 flex items-center gap-1.5 transition-colors duration-300 rounded-full ${activeTab === 'list' ? 'text-[#E4E3E0]' : 'text-[#141414]/50 hover:text-[#141414]'}`}>
-              <ListFilter size={12}/> Clusters
+            <button onClick={() => setActiveTab('list')} className={`relative z-10 px-6 py-2 flex items-center gap-2 transition-colors duration-300 rounded-full ${activeTab === 'list' ? 'text-[#E4E3E0]' : 'text-[#141414]/60 hover:text-[#141414]'}`}>
+              <ListFilter size={14}/> CLUSTERS
             </button>
-            <button onClick={() => setActiveTab('analytics')} className={`relative z-10 px-5 py-1.5 flex items-center gap-1.5 transition-colors duration-300 rounded-full ${activeTab === 'analytics' ? 'text-[#E4E3E0]' : 'text-[#141414]/50 hover:text-[#141414]'}`}>
-              <PieChart size={12}/> Analytics
+            <button onClick={() => setActiveTab('analytics')} className={`relative z-10 px-6 py-2 flex items-center gap-2 transition-colors duration-300 rounded-full ${activeTab === 'analytics' ? 'text-[#E4E3E0]' : 'text-[#141414]/60 hover:text-[#141414]'}`}>
+              <PieChart size={14}/> ANALYTICS
             </button>
           </div>
         </div>
       )}
 
       {/* MAIN CONTENT AREA */}
-      <div className={`flex gap-8 relative items-start transition-all duration-500 ${selectedFilePreview && activeTab === 'list' ? 'pr-4 md:pr-[380px]' : 'pr-0'}`}>
+      <div className="flex gap-8 relative items-start pr-4 md:pr-[380px]">
 
         {/* LEFT/MAIN LIST: 3. CLUSTER CARDS */}
         <div className={`flex-1 min-w-0 transition-all duration-500`}>
@@ -588,15 +541,15 @@ export default function Dashboard() {
                 const totalClusterSize = group.size * group.files.length;
                 const duplicateCount = group.files.length - 1;
                 return (
-                <motion.div
+                <motion.div 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(idx * 0.05, 0.5) }}
-                  key={group.hash}
-                  className="bg-white/5 backdrop-blur-sm border border-white/[0.06] shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_20px_40px_rgba(0,0,0,0.35)] rounded-2xl overflow-hidden hover:border-[#141414]/10 hover:shadow-2xl transition-all duration-300 group/card border-l-[3px] border-l-[#f5e7c1] mb-[32px]"
+                  key={group.hash} 
+                  className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl overflow-visible hover:border-[#141414]/10 hover:shadow-xl transition-all duration-300 group/card border-l-[3px] border-l-[#f5e7c1]"
                 >
                   {/* Cluster Header */}
-                  <div className="py-[18px] px-[22px] border-b border-[#141414]/10">
+                  <div className="px-5 pt-5 pb-4 border-b border-[#141414]/10">
                     <div className="flex items-center justify-between gap-4">
                       <div className="min-w-0 flex-1">
                         <div className="font-mono text-[10px] uppercase tracking-widest opacity-60">Cluster #{clusterIndex}</div>
@@ -616,104 +569,93 @@ export default function Dashboard() {
                   </div>
 
                   {/* Original File Row */}
-                  <div className="grid grid-cols-[60px_1fr_140px_auto] gap-4 items-center py-[18px] px-[22px] border-b border-[#141414]/10 bg-white/10">
-                    <div className="flex items-center justify-center">
-                      <div className={`p-2 rounded-lg shadow-sm bg-white/40 ${getCategoryTone(group.category)}`}>
+                  <div className="p-5 flex items-center justify-between border-b border-[#141414]/10 bg-white/10">
+                    <div className="flex items-center gap-4 min-w-0 flex-1">
+                      <div className="bg-[#141414] text-[#E4E3E0] text-[9px] font-mono px-2 py-1 rounded shadow-sm tracking-widest shrink-0">ORIGINAL</div>
+                      <div className={`p-2 rounded-lg shadow-sm bg-white/40 ${getCategoryTone(group.category)} shrink-0`}>
                         {getCategoryIcon(group.category, 16)}
                       </div>
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="bg-[#141414] text-[#E4E3E0] text-[9px] font-mono px-2 py-1 rounded shadow-sm tracking-widest shrink-0">ORIGINAL</div>
-                      </div>
-                      <div className="font-semibold text-sm truncate text-[#141414]">{group.files[0].name}</div>
-                      <div className="font-mono text-[10px] opacity-50 mt-1">
-                        {formatBytes(group.size)} • {group.files[0].category}
-                      </div>
-                      <div className="font-mono text-[10px] opacity-40 mt-1 flex items-center gap-1 min-w-0">
-                        <MapPin size={10} className="shrink-0" />
-                        <span className="truncate max-w-full overflow-hidden text-ellipsis">{group.files[0].path}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-sm truncate text-[#141414]">{group.files[0].name}</div>
+                        <div className="font-mono text-[10px] opacity-50 mt-1">
+                          {formatBytes(group.size)} • {group.files[0].category}
+                        </div>
+                        <div className="font-mono text-[10px] opacity-40 mt-1 flex items-center gap-1 min-w-0">
+                          <MapPin size={10} className="shrink-0" />
+                          <span className="truncate">{group.files[0].path}</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center justify-end">
+                    <div className="flex items-center gap-3 shrink-0 pl-4">
                       <div className="flex flex-col items-end">
                         <span className="font-mono text-[9px] uppercase tracking-widest opacity-40 mb-1">Reclaimable</span>
                         <span className="text-green-700 font-bold bg-green-500/10 px-3 py-1 rounded-full text-xs font-mono shadow-sm border border-green-500/20">
                           {formatBytes(group.size * duplicateCount)}
                         </span>
                       </div>
-                    </div>
-                    <div className="hidden group-hover/card:flex items-center gap-2 transition-all duration-200">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); revealFile(group.files[0].path); }}
-                        className="px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-widest border border-[#141414]/15 text-[#141414]/60 hover:text-[#141414] hover:border-[#D6B98C] hover:bg-[#141414]/5 transition-colors"
-                      >
-                        Reveal
-                      </button>
-                      <button
-                        onClick={(e) => deleteSingleFile(e, group.files[0].path, group.hash)}
-                        className="px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-widest border border-red-500/20 text-red-600/60 hover:text-red-600 hover:border-red-500 hover:bg-red-500/5 transition-colors"
-                      >
-                        Delete
-                      </button>
+                      <div className="hidden sm:flex items-center gap-2">
+                        {['Open', 'Reveal', 'Hash'].map(action => (
+                          <button
+                            key={action}
+                            onClick={(e) => e.stopPropagation()}
+                            className="px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-widest border border-[#141414]/15 text-[#141414]/60 hover:text-[#141414] hover:border-[#D6B98C] hover:bg-[#141414]/5 transition-colors"
+                          >
+                            {action}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                   
                   {/* Duplicates List */}
                   <div className="divide-y divide-[#141414]/10">
                     {group.files.slice(1).map(file => (
-                      <div
-                        key={file.path}
-                        className={`grid grid-cols-[60px_1fr_140px_auto] gap-4 items-center py-[18px] px-[22px] transition-all duration-200 cursor-pointer border-l-4
-                          ${selectedFilePreview?.file.path === file.path ? 'bg-[#141414]/5 border-[#D6B98C] hover:bg-[#141414]/10' : 'border-transparent hover:bg-white/[0.03] hover:border-[#141414]/10'}`}
+                      <div 
+                        key={file.path} 
+                        className={`p-4 pl-5 flex items-center justify-between transition-colors cursor-pointer border-l-4 
+                          ${selectedFilePreview?.file.path === file.path ? 'bg-[#141414]/5 border-[#D6B98C]' : 'border-transparent hover:bg-white/10 hover:border-[#141414]/10'}`}
                         onClick={() => setSelectedFilePreview({file, group})}
                       >
-                        <div
-                          className="relative flex items-center justify-center"
-                          onClick={(e) => { e.stopPropagation(); toggleSelection(file.path); }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedFiles.has(file.path)}
-                            onChange={() => {}}
-                            className="accent-[#141414] w-5 h-5 cursor-pointer relative z-10"
-                          />
-                          {selectedFiles.has(file.path) && <motion.div layoutId={`check-${file.path}`} className="absolute inset-0 bg-[#141414]/20 rounded-full blur-sm" />}
-                        </div>
+                        <div className="flex items-center gap-4 min-w-0 flex-1">
+                          <div
+                            className="relative flex items-center justify-center min-w-[42px]"
+                            onClick={(e) => { e.stopPropagation(); toggleSelection(file.path); }}
+                          >
+                            <input 
+                              type="checkbox" 
+                              checked={selectedFiles.has(file.path)} 
+                              onChange={() => {}} // Handled by div wrapper
+                              className="accent-[#141414] w-5 h-5 cursor-pointer relative z-10"
+                            />
+                            {selectedFiles.has(file.path) && <motion.div layoutId={`check-${file.path}`} className="absolute inset-0 bg-[#141414]/20 rounded-full blur-sm" />}
+                          </div>
+                          
+                          <div className={`p-2 rounded-lg bg-white/40 ${getCategoryTone(file.category)}`}>
+                            {getCategoryIcon(file.category, 14)}
+                          </div>
 
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className={`p-2 rounded-lg bg-white/40 ${getCategoryTone(file.category)}`}>
-                              {getCategoryIcon(file.category, 14)}
+                          <div className="min-w-0 flex-1">
+                            <div className={`font-semibold text-[13px] truncate transition-colors ${selectedFiles.has(file.path) ? 'text-red-600' : 'text-[#141414]'}`}>{file.name}</div>
+                            <div className="font-mono text-[10px] opacity-50 mt-1">
+                              {formatBytes(group.size)} • {file.category}
+                            </div>
+                            <div className="font-mono text-[10px] opacity-40 mt-1 flex items-center gap-1 min-w-0">
+                              <MapPin size={10} className="shrink-0" />
+                              <span className="truncate">{file.path}</span>
                             </div>
                           </div>
-                          <div className={`font-semibold text-[13px] truncate transition-colors ${selectedFiles.has(file.path) ? 'text-red-600' : 'text-[#141414]'}`}>{file.name}</div>
-                          <div className="font-mono text-[10px] opacity-50 mt-1">
-                            {formatBytes(group.size)} • {file.category}
-                          </div>
-                          <div className="font-mono text-[10px] opacity-40 mt-1 flex items-center gap-1 min-w-0">
-                            <MapPin size={10} className="shrink-0" />
-                            <span className="truncate max-w-full overflow-hidden text-ellipsis">{file.path}</span>
-                          </div>
                         </div>
-
-                        <div className="flex items-center justify-end">
+                        <div className="shrink-0 pl-4 flex items-center gap-2">
+                          {['Open', 'Reveal', 'Hash'].map(action => (
+                            <button
+                              key={action}
+                              onClick={(e) => e.stopPropagation()}
+                              className="px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-widest border border-[#141414]/15 text-[#141414]/60 hover:text-[#141414] hover:border-[#D6B98C] hover:bg-[#141414]/5 transition-colors"
+                            >
+                              {action}
+                            </button>
+                          ))}
                           <ChevronRight size={16} className={`transition-all ${selectedFilePreview?.file.path === file.path ? 'opacity-100 text-[#141414] translate-x-1' : 'opacity-20'}`} />
-                        </div>
-
-                        <div className="hidden group-hover/card:flex items-center gap-2 transition-all duration-200">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); revealFile(file.path); }}
-                            className="px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-widest border border-[#141414]/15 text-[#141414]/60 hover:text-[#141414] hover:border-[#D6B98C] hover:bg-[#141414]/5 transition-colors"
-                          >
-                            Reveal
-                          </button>
-                          <button
-                            onClick={(e) => deleteSingleFile(e, file.path, group.hash)}
-                            className="px-3 py-1 rounded-full text-[10px] font-mono uppercase tracking-widest border border-red-500/20 text-red-600/60 hover:text-red-600 hover:border-red-500 hover:bg-red-500/5 transition-colors"
-                          >
-                            Delete
-                          </button>
                         </div>
                       </div>
                     ))}
@@ -911,14 +853,14 @@ export default function Dashboard() {
 
 function StatCard({ icon, label, value, accent, supportText }: { icon: React.ReactNode, label: string, value: string | number, accent?: boolean, supportText?: string }) {
   return (
-    <div className="border border-[#141414]/10 px-5 py-4 rounded-xl bg-white/40 hover:bg-[#141414]/5 transition-all shadow-sm">
-      <div className="flex items-center gap-2 opacity-50 mb-2">
+    <div className="border border-[#141414]/10 p-6 rounded-xl bg-white/40 hover:bg-[#141414]/5 transition-all shadow-sm">
+      <div className="flex items-center gap-2 opacity-50 mb-3">
         {icon}
-        <span className="text-[9px] font-mono uppercase tracking-widest">{label}</span>
+        <span className="text-[10px] font-mono uppercase tracking-widest">{label}</span>
       </div>
-      <div className={`text-2xl font-serif italic ${accent ? 'text-green-700' : 'text-[#141414]'}`}>{value}</div>
+      <div className={`text-3xl font-serif italic ${accent ? 'text-green-700' : 'text-[#141414]'}`}>{value}</div>
       {supportText && (
-        <div className="mt-1 text-[9px] font-mono uppercase tracking-widest opacity-40">
+        <div className="mt-2 text-[10px] font-mono uppercase tracking-widest opacity-50">
           {supportText}
         </div>
       )}

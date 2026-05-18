@@ -1,0 +1,20 @@
+directories:
+  output: releases
+  buildResources: build
+appId: com.aortacore.engine
+productName: AortaCore Engine
+icon: electron/AC-LOGO.png
+files:
+  - filter:
+      - dist/**/*
+      - electron/**/*
+      - package.json
+extraResources:
+  - from: ../backend/target
+    filter:
+      - duplicate-file-finder-1.0-SNAPSHOT-jar-with-dependencies.jar
+win:
+  target:
+    - nsis
+    - portable
+electronVersion: 42.1.0
