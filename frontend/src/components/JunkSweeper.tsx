@@ -13,10 +13,16 @@ const formatBytes = (bytes: number) => {
 export default function JunkSweeper() {
   const [isScanning, setIsScanning] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
+  const [cancelRequested, setCancelRequested] = useState(false);
   const [files, setFiles] = useState<any[]>([]);
   const [progress, setProgress] = useState<any>(null);
   const [hasScanned, setHasScanned] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(100);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [failedPaths, setFailedPaths] = useState<string[]>([]);
+  const [forceDelete, setForceDelete] = useState(false);
+  const scanRunRef = React.useRef(0);
+  const cancelRequestedRef = React.useRef(false);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -36,26 +42,50 @@ export default function JunkSweeper() {
   }, [isScanning, isCleaning]);
 
   const startScan = async () => {
+    const runId = ++scanRunRef.current;
+    cancelRequestedRef.current = false;
+    setCancelRequested(false);
     setIsScanning(true);
     setHasScanned(true);
     setFiles([]);
     setDisplayLimit(100);
+    setErrorMsg('');
+    setFailedPaths([]);
     try {
       const res = await fetch('http://localhost:8080/api/junk/scan');
+      const data = await res.json();
+      if (runId !== scanRunRef.current || cancelRequestedRef.current) return;
+      if (res.status === 409) {
+        setErrorMsg(data.error || 'Scan canceled.');
+        return;
+      }
       if (res.ok) {
-        const data = await res.json();
         setFiles(data.junkFiles);
       }
     } catch (err) {
       console.error(err);
     } finally {
       setIsScanning(false);
+      setCancelRequested(false);
+    }
+  };
+
+  const requestStop = async () => {
+    if (!isScanning) return;
+    cancelRequestedRef.current = true;
+    setCancelRequested(true);
+    try {
+      await fetch('http://localhost:8080/api/scan/stop', { method: 'POST' });
+    } catch (err) {
+      setErrorMsg('Failed to request stop.');
     }
   };
 
   const executeClean = async () => {
     if (files.length === 0) return;
     setIsCleaning(true);
+    setErrorMsg('');
+    setFailedPaths([]);
     try {
       const totalBytes = files.reduce((acc, f) => acc + f.size, 0);
       const res = await fetch('http://localhost:8080/api/delete', {
@@ -64,16 +94,46 @@ export default function JunkSweeper() {
         body: JSON.stringify({
           paths: files.map(f => f.path),
           moveToTrash: true, // Safety first, move to recycle bin
+          forceDelete,
           bytesRecovered: totalBytes
         }),
       });
       if (res.ok) {
-        setFiles([]);
+        const data = await res.json();
+        if (data.deletedCount > 0) {
+          const deletedSet = new Set(data.deletedPaths || []);
+          const remaining = files.filter(f => !deletedSet.has(f.path));
+          setFiles(remaining);
+        } else {
+          setErrorMsg('No files were deleted. Some items may be locked or require admin access.');
+        }
+        if (data.failedCount > 0) {
+          setFailedPaths(data.failedPaths || []);
+          setErrorMsg('Some files could not be deleted. Close apps using them and try again.');
+        }
       }
     } catch (err) {
       console.error(err);
+      setErrorMsg('Failed to communicate with the cleanup engine.');
     } finally {
       setIsCleaning(false);
+    }
+  };
+
+  const requestAdminRestart = async () => {
+    try {
+      const electron = (window as any).require ? (window as any).require('electron') : null;
+      const ipc = electron?.ipcRenderer;
+      if (!ipc || !ipc.invoke) {
+        setErrorMsg('Admin restart is not available in this environment.');
+        return;
+      }
+      const result = await ipc.invoke('restart-elevated');
+      if (!result?.ok) {
+        setErrorMsg(result?.message || 'Failed to request elevation.');
+      }
+    } catch (err) {
+      setErrorMsg('Failed to request elevation.');
     }
   };
 
@@ -138,6 +198,15 @@ export default function JunkSweeper() {
               <><Search size={16} /> ANALYZE KERNEL</>
             )}
           </button>
+          {isScanning && (
+            <button
+              onClick={requestStop}
+              disabled={cancelRequested}
+              className="bg-red-600 hover:bg-red-700 text-[#E4E3E0] font-mono text-xs uppercase tracking-widest px-8 py-4 rounded transition-all shadow-[0_0_20px_rgba(220,38,38,0.3)] flex items-center gap-2 disabled:opacity-60"
+            >
+              {cancelRequested ? 'STOPPING...' : 'STOP'}
+            </button>
+          )}
 
           <AnimatePresence>
             {files.length > 0 && (
@@ -154,11 +223,35 @@ export default function JunkSweeper() {
             )}
           </AnimatePresence>
         </div>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-[10px] font-mono uppercase tracking-widest text-[#E4E3E0]/70">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={forceDelete}
+              onChange={(e) => setForceDelete(e.target.checked)}
+              className="accent-red-500"
+            />
+            Force Delete (skip Recycle Bin)
+          </label>
+          {failedPaths.length > 0 && (
+            <button
+              onClick={requestAdminRestart}
+              className="px-3 py-2 rounded bg-white/10 hover:bg-white/20 transition-colors"
+            >
+              Retry as Administrator
+            </button>
+          )}
+        </div>
+        {errorMsg && (
+          <div className="mt-4 text-xs font-mono uppercase tracking-widest text-red-400">
+            {errorMsg}
+          </div>
+        )}
       </div>
 
       {/* Progress Monitor */}
       <AnimatePresence>
-        {(isScanning || isCleaning) && progress && (
+        {(isScanning || isCleaning) && (
           <motion.div 
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
@@ -166,8 +259,8 @@ export default function JunkSweeper() {
             className="bg-[#141414]/5 border border-[#141414]/10 rounded-lg p-6 font-mono text-xs overflow-hidden"
           >
             <div className="flex justify-between uppercase text-[#141414] font-bold mb-3">
-              <span className="flex items-center gap-2"><ShieldAlert size={14} className="animate-pulse" /> {isCleaning ? "ERASING JUNK" : "SCANNING DIRECTORIES"}</span>
-              <span>{formatBytes(progress.bytesScanned)} PROCESSED</span>
+              <span className="flex items-center gap-2"><ShieldAlert size={14} className="animate-pulse" /> {isCleaning ? "ERASING JUNK" : (cancelRequested ? "CANCELING SCAN" : "SCANNING DIRECTORIES")}</span>
+              <span>{progress ? `${formatBytes(progress.bytesScanned)} PROCESSED` : 'WORKING...'}</span>
             </div>
             <div className="w-full h-2 bg-[#141414]/10 rounded-full overflow-hidden mb-3">
               <motion.div 
@@ -176,7 +269,7 @@ export default function JunkSweeper() {
                 transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
               />
             </div>
-            <div className="truncate opacity-50 text-[10px] text-[#141414]">Target: {progress.currentFile}</div>
+            <div className="truncate opacity-50 text-[10px] text-[#141414]">Target: {progress?.currentFile || 'Preparing scan...'}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -208,6 +301,21 @@ export default function JunkSweeper() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Failed Deletions */}
+      {failedPaths.length > 0 && (
+        <div className="bg-white/40 border border-red-500/30 rounded-lg p-4 font-mono text-xs text-red-700">
+          <div className="uppercase tracking-widest text-[10px] mb-2">Failed to delete ({failedPaths.length})</div>
+          <div className="max-h-[160px] overflow-y-auto space-y-1">
+            {failedPaths.slice(0, 100).map((path, idx) => (
+              <div key={`${path}-${idx}`} className="truncate" title={path}>{path}</div>
+            ))}
+          </div>
+          {failedPaths.length > 100 && (
+            <div className="mt-2 text-[10px] opacity-60">Showing first 100 paths.</div>
+          )}
+        </div>
+      )}
 
       {/* File List Preview */}
       <AnimatePresence>

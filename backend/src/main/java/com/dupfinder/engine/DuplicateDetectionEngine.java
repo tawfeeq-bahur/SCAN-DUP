@@ -29,6 +29,10 @@ public class DuplicateDetectionEngine {
     public Map<String, List<FileRecord>> findDuplicates(Path directory) {
         System.out.println("Step 1: Scanning directory -> " + directory);
         List<FileRecord> allFiles = fileScanner.scan(directory);
+        if (com.dupfinder.model.ProgressTracker.isCanceled()) {
+            com.dupfinder.model.ProgressTracker.phase = "Canceled";
+            return Collections.emptyMap();
+        }
         System.out.println("Total files found: " + allFiles.size());
 
         if (allFiles.isEmpty()) {
@@ -61,6 +65,10 @@ public class DuplicateDetectionEngine {
 
         System.out.println("Step 3: Calculating MD5 hashes concurrently for potential duplicates...");
         com.dupfinder.model.ProgressTracker.phase = "Hashing Potential Duplicates...";
+        if (com.dupfinder.model.ProgressTracker.isCanceled()) {
+            com.dupfinder.model.ProgressTracker.phase = "Canceled";
+            return Collections.emptyMap();
+        }
         // Multithreading Optimization: Compute hashes in parallel using a thread pool.
         int cores = Runtime.getRuntime().availableProcessors();
         ExecutorService executor = Executors.newFixedThreadPool(cores);
@@ -68,6 +76,9 @@ public class DuplicateDetectionEngine {
         // Submit hashing tasks
         List<CompletableFuture<Void>> futures = potentialDuplicates.stream()
                 .map(record -> CompletableFuture.runAsync(() -> {
+                    if (com.dupfinder.model.ProgressTracker.isCanceled()) {
+                        return;
+                    }
                     String hash = HashingUtility.generateHash(record.getPath());
                     record.setHash(hash);
                     com.dupfinder.model.ProgressTracker.currentFile = "Hashing: " + record.getPath().getFileName();
@@ -77,6 +88,11 @@ public class DuplicateDetectionEngine {
         // Wait for all hashing tasks to complete
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         executor.shutdown();
+        if (com.dupfinder.model.ProgressTracker.isCanceled()) {
+            executor.shutdownNow();
+            com.dupfinder.model.ProgressTracker.phase = "Canceled";
+            return Collections.emptyMap();
+        }
 
         System.out.println("Step 4: Grouping files by exact MD5 hash...");
         com.dupfinder.model.ProgressTracker.phase = "Finalizing Results...";

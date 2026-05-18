@@ -36,6 +36,9 @@ public class FileScanner {
             Files.walkFileTree(startPath, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                    if (com.dupfinder.model.ProgressTracker.isCanceled()) {
+                        return FileVisitResult.TERMINATE;
+                    }
                     Path fileName = dir.getFileName();
                     if (fileName == null) {
                         return FileVisitResult.CONTINUE; // Root directory (like D:\), we should scan it
@@ -53,6 +56,9 @@ public class FileScanner {
 
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    if (com.dupfinder.model.ProgressTracker.isCanceled()) {
+                        return FileVisitResult.TERMINATE;
+                    }
                     // We only care about regular files, not directories or symlinks
                     if (attrs.isRegularFile()) {
                         fileRecords.add(new FileRecord(file, attrs.size()));
@@ -65,6 +71,9 @@ public class FileScanner {
 
                 @Override
                 public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                    if (com.dupfinder.model.ProgressTracker.isCanceled()) {
+                        return FileVisitResult.TERMINATE;
+                    }
                     // Handle files we cannot access (e.g., due to permission denied or offline files)
                     // We comment out the print statement to avoid massive console spam when scanning large drives (like D:\)
                     // System.err.println("Skipping file (access denied/error): " + file);

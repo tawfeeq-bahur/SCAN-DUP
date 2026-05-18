@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Target, Search, FileWarning, Trash2, PieChart } from 'lucide-react';
+import { Target, Search, X, PieChart, Folder, Film, Archive, Code2, FileText, HardDrive, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const formatBytes = (bytes: number) => {
@@ -13,10 +13,26 @@ const formatBytes = (bytes: number) => {
 export default function StorageRadar() {
   const [path, setPath] = useState('C:\\');
   const [isScanning, setIsScanning] = useState(false);
+  const [cancelRequested, setCancelRequested] = useState(false);
   const [files, setFiles] = useState<any[]>([]);
   const [maxSize, setMaxSize] = useState(0);
   const [progress, setProgress] = useState<any>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const scanRunRef = React.useRef(0);
+  const cancelRequestedRef = React.useRef(false);
+  const scanAbortRef = React.useRef<AbortController | null>(null);
+
+  const selectFolder = async () => {
+    try {
+      const electron = (window as any).require ? (window as any).require('electron') : null;
+      const ipc = electron?.ipcRenderer;
+      if (!ipc || !ipc.invoke) return;
+      const selected = await ipc.invoke('select-folder');
+      if (selected) setPath(selected);
+    } catch (err) {
+      console.error('Failed to select folder', err);
+    }
+  };
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -44,16 +60,24 @@ export default function StorageRadar() {
   }, {});
 
   const startScan = async () => {
+    const runId = ++scanRunRef.current;
+    cancelRequestedRef.current = false;
+    setCancelRequested(false);
     setIsScanning(true);
     setFiles([]);
     try {
+      const controller = new AbortController();
+      scanAbortRef.current = controller;
       const res = await fetch('http://localhost:8080/api/radar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path }),
+        signal: controller.signal,
       });
+      const data = await res.json();
+      if (runId !== scanRunRef.current || cancelRequestedRef.current) return;
+      if (res.status === 409) return;
       if (res.ok) {
-        const data = await res.json();
         setFiles(data.largestFiles);
         setSelectedCategory(null); // Reset filter on new scan
         if (data.largestFiles.length > 0) {
@@ -61,9 +85,28 @@ export default function StorageRadar() {
         }
       }
     } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        console.error(err);
+      }
+    } finally {
+      setIsScanning(false);
+      setCancelRequested(false);
+      scanAbortRef.current = null;
+    }
+  };
+
+  const requestStop = async () => {
+    if (!isScanning) return;
+    cancelRequestedRef.current = true;
+    setCancelRequested(true);
+    try {
+      await fetch('http://localhost:8080/api/scan/stop', { method: 'POST' });
+      scanAbortRef.current?.abort();
+    } catch (err) {
       console.error(err);
     } finally {
       setIsScanning(false);
+      setCancelRequested(false);
     }
   };
 
@@ -115,6 +158,15 @@ export default function StorageRadar() {
           placeholder="E.G. C:\USERS\DOWNLOADS..."
           disabled={isScanning}
         />
+        <button
+          onClick={selectFolder}
+          aria-label="Select Folder"
+          title="Select folder"
+          className="px-3 py-2 rounded-md hover:bg-[#141414]/5 transition-colors"
+          disabled={isScanning}
+        >
+          <Folder size={16} />
+        </button>
         <button 
           onClick={startScan}
           disabled={isScanning}
@@ -126,6 +178,15 @@ export default function StorageRadar() {
             <><Target size={16} /> ENGAGE RADAR</>
           )}
         </button>
+        {isScanning && (
+          <button
+            onClick={requestStop}
+            disabled={cancelRequested}
+            className="ml-2 bg-red-600 text-white px-6 py-3 rounded-lg flex items-center gap-2 hover:bg-red-700 active:scale-[0.98] transition-all font-mono text-xs uppercase tracking-widest shadow-md disabled:opacity-60"
+          >
+            <X size={16} /> {cancelRequested ? 'STOPPING' : 'STOP'}
+          </button>
+        )}
       </div>
 
       {/* Progress & Categories */}
@@ -174,6 +235,73 @@ export default function StorageRadar() {
                 </button>
               );
             })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* EMPTY STATE */}
+      <AnimatePresence>
+        {!isScanning && files.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="min-h-[60vh] flex items-center justify-center"
+          >
+            <div className="w-full max-w-4xl text-center">
+              <div className="mx-auto w-20 h-20 rounded-2xl bg-[#141414]/10 flex items-center justify-center shadow-[0_0_30px_rgba(20,20,20,0.08)]">
+                <Target size={28} className="text-[#141414]" />
+              </div>
+              <h3 className="mt-6 font-serif italic text-3xl text-[#141414]">Largest File Intelligence</h3>
+              <p className="mt-3 text-sm text-[#141414]/70 max-w-xl mx-auto">
+                AortaCore will identify massive media files, unused SDKs, old installers, hidden cache systems, and space-consuming archives.
+              </p>
+              <motion.button
+                onClick={startScan}
+                disabled={isScanning}
+                className="mt-8 bg-[#141414] text-[#E4E3E0] px-10 py-4 rounded-xl font-mono text-xs uppercase tracking-widest shadow-md hover:bg-[#141414]/90 transition-all"
+                animate={{ boxShadow: ['0 0 0 rgba(214,185,140,0)', '0 0 18px rgba(214,185,140,0.35)', '0 0 0 rgba(214,185,140,0)'] }}
+                transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                Engage Radar
+              </motion.button>
+
+              <div className="mt-10 grid grid-cols-2 md:grid-cols-5 gap-4">
+                {[
+                  { label: 'Videos', icon: <Film size={16} /> },
+                  { label: 'Archives', icon: <Archive size={16} /> },
+                  { label: 'AI Models', icon: <HardDrive size={16} /> },
+                  { label: 'SDK Files', icon: <Code2 size={16} /> },
+                  { label: 'Documents', icon: <FileText size={16} /> },
+                ].map(item => (
+                  <div key={item.label} className="bg-white/30 border border-[#141414]/10 rounded-xl p-4 text-center opacity-70 hover:opacity-100 transition-opacity">
+                    <div className="mx-auto w-8 h-8 rounded-lg bg-[#141414]/10 flex items-center justify-center text-[#141414]">
+                      {item.icon}
+                    </div>
+                    <div className="mt-3 font-mono text-[10px] uppercase tracking-widest text-[#141414]/70">{item.label}</div>
+                    <div className="mt-2 h-1.5 rounded-full bg-[#141414]/10" />
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-10 bg-white/30 border border-[#141414]/10 rounded-2xl overflow-hidden text-left">
+                <div className="px-5 py-3 border-b border-[#141414]/10 font-mono text-[10px] uppercase tracking-widest text-[#141414]/60">
+                  Top Hogs Preview
+                </div>
+                <div className="divide-y divide-[#141414]/10">
+                  {[
+                    { name: 'weights.bin', size: '3.2 GB' },
+                    { name: 'sdk-system.img', size: '2.1 GB' },
+                    { name: 'video-render.mp4', size: '8.4 GB' },
+                  ].map((row) => (
+                    <div key={row.name} className="px-5 py-3 flex items-center justify-between text-sm text-[#141414]/60">
+                      <span className="font-mono text-[11px] uppercase tracking-widest">{row.name}</span>
+                      <span className="font-serif italic text-lg">{row.size}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -239,12 +367,6 @@ export default function StorageRadar() {
           })}
         </AnimatePresence>
         
-        {!isScanning && files.length === 0 && (
-          <div className="py-24 text-center font-mono text-sm opacity-50 border-2 border-dashed border-[#141414]/10 rounded-lg">
-            <FileWarning className="mx-auto mb-4 opacity-50" size={32} />
-            NO DATA. RUN RADAR TO DETECT STORAGE HOGS.
-          </div>
-        )}
       </div>
 
     </div>

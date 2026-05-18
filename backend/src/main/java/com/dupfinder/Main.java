@@ -30,8 +30,14 @@ public class Main {
                 "filesScanned", com.dupfinder.model.ProgressTracker.filesScanned,
                 "bytesScanned", com.dupfinder.model.ProgressTracker.bytesScanned,
                 "currentFile", com.dupfinder.model.ProgressTracker.currentFile,
-                "phase", com.dupfinder.model.ProgressTracker.phase
+                "phase", com.dupfinder.model.ProgressTracker.phase,
+                "cancelRequested", com.dupfinder.model.ProgressTracker.cancelRequested
             ));
+        });
+
+        app.post("/api/scan/stop", ctx -> {
+            com.dupfinder.model.ProgressTracker.requestCancel();
+            ctx.json(Map.of("status", "cancel_requested"));
         });
 
         app.post("/api/scan", ctx -> {
@@ -47,6 +53,11 @@ public class Main {
             long startTime = System.currentTimeMillis();
             Map<String, List<FileRecord>> duplicates = engine.findDuplicates(startPath);
             long endTime = System.currentTimeMillis();
+
+            if (com.dupfinder.model.ProgressTracker.isCanceled()) {
+                ctx.status(409).json(Map.of("error", "Scan canceled"));
+                return;
+            }
             
             java.util.Map<String, List<Map<String, Object>>> serializedDuplicates = new java.util.HashMap<>();
             java.util.concurrent.atomic.AtomicLong totalWastedSize = new java.util.concurrent.atomic.AtomicLong(0);
@@ -81,23 +92,28 @@ public class Main {
             DeleteRequest req = ctx.bodyAsClass(DeleteRequest.class);
             int successCount = 0;
             List<String> deletedPaths = new java.util.ArrayList<>();
+            List<String> failedPaths = new java.util.ArrayList<>();
             
             for (String filePath : req.paths) {
                 try {
                     Path fileToDelete = Paths.get(filePath);
+                    boolean deleted = false;
                     if (req.moveToTrash && java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.MOVE_TO_TRASH)) {
-                        boolean success = java.awt.Desktop.getDesktop().moveToTrash(fileToDelete.toFile());
-                        if (success) {
-                            successCount++;
-                            deletedPaths.add(filePath);
-                        }
-                    } else {
+                        deleted = java.awt.Desktop.getDesktop().moveToTrash(fileToDelete.toFile());
+                    }
+                    if (!deleted && req.forceDelete) {
                         java.nio.file.Files.delete(fileToDelete);
+                        deleted = true;
+                    }
+                    if (deleted) {
                         successCount++;
                         deletedPaths.add(filePath);
+                    } else {
+                        failedPaths.add(filePath);
                     }
                 } catch (Exception e) {
                     System.err.println("Failed to delete " + filePath + ": " + e.getMessage());
+                    failedPaths.add(filePath);
                 }
             }
             
@@ -105,7 +121,13 @@ public class Main {
                 com.dupfinder.service.DatabaseService.saveCleanupRecord(successCount, req.bytesRecovered);
             }
             
-            ctx.json(Map.of("deletedCount", successCount, "totalRequested", req.paths.size(), "deletedPaths", deletedPaths));
+            ctx.json(Map.of(
+                "deletedCount", successCount,
+                "totalRequested", req.paths.size(),
+                "deletedPaths", deletedPaths,
+                "failedCount", failedPaths.size(),
+                "failedPaths", failedPaths
+            ));
         });
 
         app.get("/api/history/scans", ctx -> {
@@ -136,6 +158,11 @@ public class Main {
                 return;
             }
             List<FileRecord> largestFiles = radarEngine.findLargestFiles(startPath, 50);
+
+            if (com.dupfinder.model.ProgressTracker.isCanceled()) {
+                ctx.status(409).json(Map.of("error", "Scan canceled"));
+                return;
+            }
             
             List<Map<String, Object>> mappedFiles = largestFiles.stream().map(record -> Map.<String, Object>of(
                     "path", record.getPath().toString(),
@@ -149,6 +176,10 @@ public class Main {
         com.dupfinder.engine.JunkSweeperEngine junkEngine = new com.dupfinder.engine.JunkSweeperEngine();
         app.get("/api/junk/scan", ctx -> {
             List<FileRecord> junkFiles = junkEngine.scanForJunk();
+            if (com.dupfinder.model.ProgressTracker.isCanceled()) {
+                ctx.status(409).json(Map.of("error", "Scan canceled"));
+                return;
+            }
             List<Map<String, Object>> mappedJunk = junkFiles.stream().map(record -> {
                 String cat = "Temp File";
                 if (record.getPath().toString().endsWith(".log")) cat = "Log File";
@@ -174,12 +205,20 @@ public class Main {
                 return;
             }
             List<com.dupfinder.engine.SmartOrganizerEngine.MoveOperation> ops = organizerEngine.analyzeDirectory(startPath);
+            if (com.dupfinder.model.ProgressTracker.isCanceled()) {
+                ctx.status(409).json(Map.of("error", "Scan canceled"));
+                return;
+            }
             ctx.json(Map.of("operations", ops));
         });
 
         app.post("/api/organizer/execute", ctx -> {
             ExecuteOrganizerRequest req = ctx.bodyAsClass(ExecuteOrganizerRequest.class);
             int moved = organizerEngine.executeMoves(req.operations);
+            if (com.dupfinder.model.ProgressTracker.isCanceled()) {
+                ctx.status(409).json(Map.of("error", "Execution canceled", "movedCount", moved));
+                return;
+            }
             ctx.json(Map.of("movedCount", moved));
         });
 
@@ -202,6 +241,7 @@ public class Main {
     public static class DeleteRequest {
         public List<String> paths;
         public boolean moveToTrash;
+        public boolean forceDelete;
         public long bytesRecovered;
     }
 }

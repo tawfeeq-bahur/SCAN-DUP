@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   FolderTree, Activity, Image as ImageIcon, Film, FileText, 
-  Code2, Archive, Play, CheckCircle2, ChevronRight, FolderOutput, File, MapPin
+  Code2, Archive, Play, CheckCircle2, ChevronRight, FolderOutput, File, MapPin, Folder
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -40,10 +40,32 @@ export default function SmartOrganizer() {
   const [scanPath, setScanPath] = useState('D:\\Downloads');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [cancelRequested, setCancelRequested] = useState(false);
   const [operations, setOperations] = useState<MoveOperation[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
   const [successCount, setSuccessCount] = useState<number | null>(null);
   const [progress, setProgress] = useState<{filesScanned: number, bytesScanned: number, currentFile: string, phase: string} | null>(null);
+  const actionRunRef = React.useRef(0);
+  const cancelRequestedRef = React.useRef(false);
+
+  const placeholderCards = [
+    { label: 'Documents', hint: 'Ready for structuring' },
+    { label: 'Images', hint: 'Visual assets queued' },
+    { label: 'Videos', hint: 'Large media staged' },
+    { label: 'Archives', hint: 'Compressed bundles' }
+  ];
+
+  const selectFolder = async () => {
+    try {
+      const electron = (window as any).require ? (window as any).require('electron') : null;
+      const ipc = electron?.ipcRenderer;
+      if (!ipc || !ipc.invoke) return;
+      const selected = await ipc.invoke('select-folder');
+      if (selected) setScanPath(selected);
+    } catch (err) {
+      setErrorMsg('Failed to select folder.');
+    }
+  };
 
   const totalSize = operations.reduce((acc, op) => acc + op.size, 0);
 
@@ -54,6 +76,9 @@ export default function SmartOrganizer() {
   }, {} as Record<string, MoveOperation[]>);
 
   const handleAnalyze = async () => {
+    const runId = ++actionRunRef.current;
+    cancelRequestedRef.current = false;
+    setCancelRequested(false);
     setIsAnalyzing(true);
     setOperations([]);
     setErrorMsg('');
@@ -74,6 +99,13 @@ export default function SmartOrganizer() {
       });
       
       const data = await response.json();
+      if (runId !== actionRunRef.current || cancelRequestedRef.current) {
+        return;
+      }
+      if (response.status === 409) {
+        setErrorMsg(data.error || 'Analysis canceled.');
+        return;
+      }
       if (!response.ok) {
         setErrorMsg(data.error || 'Failed to analyze directory');
       } else {
@@ -88,10 +120,14 @@ export default function SmartOrganizer() {
       clearInterval(progressInterval);
       setProgress(null);
       setIsAnalyzing(false);
+      setCancelRequested(false);
     }
   };
 
   const handleExecute = async () => {
+    const runId = ++actionRunRef.current;
+    cancelRequestedRef.current = false;
+    setCancelRequested(false);
     setIsExecuting(true);
     setErrorMsg('');
 
@@ -110,6 +146,13 @@ export default function SmartOrganizer() {
       });
       
       const data = await response.json();
+      if (runId !== actionRunRef.current || cancelRequestedRef.current) {
+        return;
+      }
+      if (response.status === 409) {
+        setErrorMsg(data.error || 'Execution canceled.');
+        return;
+      }
       if (!response.ok) {
         setErrorMsg(data.error || 'Failed to execute operations');
       } else {
@@ -121,19 +164,34 @@ export default function SmartOrganizer() {
       clearInterval(progressInterval);
       setProgress(null);
       setIsExecuting(false);
+      setCancelRequested(false);
+    }
+  };
+
+  const requestStop = async () => {
+    if (!isAnalyzing && !isExecuting) return;
+    cancelRequestedRef.current = true;
+    setCancelRequested(true);
+    try {
+      await fetch('http://localhost:8080/api/scan/stop', { method: 'POST' });
+    } catch (err) {
+      setErrorMsg('Failed to request stop.');
     }
   };
 
   return (
     <div className="space-y-8 pb-12">
+      <div className="mx-auto max-w-[1450px] px-12 py-12">
       <header className="flex flex-col gap-6 pb-6 border-b border-[#141414]/10 relative z-20">
-        <div className="flex justify-between items-start">
-          <div className="flex-1 max-w-2xl">
-            <h2 className="font-serif italic text-4xl mb-4 text-[#141414]">Smart Auto-Organizer</h2>
-            <p className="font-sans text-sm opacity-60 mb-6 max-w-md leading-relaxed text-[#141414]">
+        <div className="flex items-start">
+          <div className="w-full">
+            <h2 className="font-serif italic text-4xl text-[#141414]">Smart Auto-Organizer</h2>
+            <div className="h-4" />
+            <p className="font-sans text-sm opacity-60 max-w-md leading-relaxed text-[#141414]">
               Instantly categorize cluttered directories. We will scan your chaotic folders and neatly sort files into dedicated sub-folders based on their genetic signature.
             </p>
-            <div className="flex bg-white/40 border border-[#141414]/10 p-2 rounded-xl backdrop-blur-md shadow-sm focus-within:border-[#D6B98C] focus-within:shadow-[0_0_15px_rgba(214,185,140,0.1)] transition-all">
+            <div className="h-8" />
+            <div className="flex w-full bg-white/40 border border-[#141414]/10 p-2 rounded-xl backdrop-blur-md shadow-sm focus-within:border-[#D6B98C] focus-within:shadow-[0_0_15px_rgba(214,185,140,0.1)] transition-all">
               <input 
                 type="text" 
                 value={scanPath}
@@ -141,6 +199,15 @@ export default function SmartOrganizer() {
                 className="flex-1 bg-transparent border-none outline-none font-mono text-sm uppercase px-4 text-[#141414] placeholder:opacity-40"
                 placeholder="ENTER CLUTTERED DIRECTORY (E.G. DOWNLOADS)..."
               />
+              <button
+                onClick={selectFolder}
+                aria-label="Select Folder"
+                title="Select folder"
+                className="px-3 py-2 rounded-md hover:bg-[#141414]/5 transition-colors"
+                disabled={isAnalyzing || isExecuting}
+              >
+                <Folder size={16} />
+              </button>
               <button 
                 onClick={handleAnalyze}
                 disabled={isAnalyzing || isExecuting}
@@ -148,11 +215,52 @@ export default function SmartOrganizer() {
               >
                 {isAnalyzing ? <><Activity size={14} className="animate-spin" /> ANALYZING...</> : <><FolderTree size={14} /> ANALYZE FOLDER</>}
               </button>
+              {(isAnalyzing || isExecuting) && (
+                <button
+                  onClick={requestStop}
+                  disabled={cancelRequested}
+                  className="ml-2 bg-red-600 text-white px-6 py-3 rounded-lg flex items-center gap-2 hover:bg-red-700 active:scale-[0.98] transition-all font-mono text-xs uppercase tracking-widest shadow-md disabled:opacity-60"
+                >
+                  {cancelRequested ? 'STOPPING' : 'STOP'}
+                </button>
+              )}
             </div>
             {errorMsg && <p className="text-red-500 text-xs font-mono mt-3 ml-2">{errorMsg}</p>}
           </div>
         </div>
       </header>
+
+      {/* Empty State (Before Scan) */}
+      {!isAnalyzing && !isExecuting && operations.length === 0 && successCount === null && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
+          <div className="flex justify-center">
+            <div className="w-full max-w-[780px] bg-white/40 border border-[#141414]/10 rounded-2xl p-10 text-center shadow-sm">
+              <div className="text-3xl mb-3">🧠</div>
+              <div className="font-serif italic text-2xl text-[#141414]">Intelligent Categorization Engine</div>
+              <div className="mt-3 text-sm opacity-60 text-[#141414]">
+                Analyze a folder to preview how AortaCore will restructure your files.
+              </div>
+              <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#141414]/5 text-[10px] font-mono uppercase tracking-widest text-[#141414]/70">
+                READY TO ORGANIZE
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
+            {placeholderCards.map((card) => (
+              <div key={card.label} className="bg-white/30 border border-[#141414]/10 rounded-2xl p-6 shadow-sm opacity-70">
+                <div className="w-12 h-12 rounded-xl bg-[#141414]/10 mb-4" />
+                <div className="font-serif italic text-2xl text-[#141414]">--</div>
+                <div className="font-mono text-[10px] uppercase tracking-widest opacity-50 mt-1">Files</div>
+                <div className="mt-4 text-sm font-semibold text-[#141414]">{card.label}</div>
+                <div className="mt-1 text-[10px] font-mono opacity-50">/{`Organized_${card.label}`}</div>
+                <div className="mt-4 h-2 rounded-full bg-[#141414]/10" />
+                <div className="mt-2 text-[10px] font-mono uppercase tracking-widest opacity-40">{card.hint}</div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       {/* Progress Monitor */}
       <AnimatePresence>
@@ -161,7 +269,7 @@ export default function SmartOrganizer() {
             <div className="bg-[#141414]/5 border border-[#D6B98C]/20 p-6 rounded-xl relative overflow-hidden backdrop-blur-md">
                <div className="absolute top-0 left-0 w-1 h-full bg-[#141414]" />
                <div className="flex justify-between items-center text-xs font-mono uppercase tracking-widest text-[#141414] mb-3">
-                  <div className="flex items-center gap-3"><Activity size={16} className="animate-pulse"/> {isExecuting ? 'EXECUTING SMART SORT...' : 'ANALYZING FILE SIGNATURES...'}</div>
+                <div className="flex items-center gap-3"><Activity size={16} className="animate-pulse"/> {isExecuting ? (cancelRequested ? 'CANCELING EXECUTION...' : 'EXECUTING SMART SORT...') : (cancelRequested ? 'CANCELING ANALYSIS...' : 'ANALYZING FILE SIGNATURES...')}</div>
                   {progress && <span className="font-bold">{progress.filesScanned} FILES PROCESSED</span>}
                </div>
                <div className="h-1.5 bg-[#141414]/10 rounded-full overflow-hidden mb-3">
@@ -191,27 +299,27 @@ export default function SmartOrganizer() {
       {/* Analytics Presentation */}
       {operations.length > 0 && successCount === null && !isExecuting && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-           <div className="flex items-center justify-between border-b border-[#141414]/10 pb-4">
+           <div className="flex items-center justify-between border-b border-[#141414]/10 pb-4 gap-4">
              <div className="flex items-center gap-3">
                <FolderOutput size={24} className="text-[#141414] opacity-80" />
                <h3 className="font-serif italic text-2xl text-[#141414]">Proposed Architecture</h3>
              </div>
              <button 
                onClick={handleExecute}
-               className="bg-[#141414] hover:bg-[#141414]/90 text-[#E4E3E0] px-8 py-4 rounded-xl flex items-center gap-3 font-mono text-sm tracking-widest shadow-[0_0_20px_rgba(214,185,140,0.3)] hover:shadow-[0_0_30px_rgba(214,185,140,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all"
+               className="bg-[#141414] hover:bg-[#141414]/90 text-[#E4E3E0] px-7 h-12 rounded-xl flex items-center gap-3 font-mono text-sm tracking-widest shadow-[0_0_20px_rgba(214,185,140,0.3)] hover:shadow-[0_0_30px_rgba(214,185,140,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all"
              >
                <Play size={16} className="fill-[#0A0A0A]" />
                EXECUTE AUTO-SORT
              </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
             {Object.entries(categoryGroups).sort((a,b) => b[1].length - a[1].length).map(([cat, ops], idx) => {
               const catSize = ops.reduce((acc, op) => acc + op.size, 0);
               const colorClass = getCategoryColor(cat);
               
               return (
-                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.1 }} key={cat} className="bg-white/40 border border-[#141414]/10 rounded-2xl p-6 shadow-sm hover:border-[#D6B98C]/50 transition-all group overflow-hidden relative">
+                <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.08 }} key={cat} className="bg-white/40 border border-[#141414]/10 rounded-2xl p-5 shadow-sm hover:border-[#D6B98C]/50 transition-all group overflow-hidden relative min-h-[230px]">
                   <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${colorClass} opacity-50 group-hover:opacity-100`} />
                   
                   <div className="flex justify-between items-start mb-6">
@@ -268,6 +376,7 @@ export default function SmartOrganizer() {
           </div>
         </motion.div>
       )}
+      </div>
     </div>
   );
 }

@@ -36,6 +36,9 @@ public class SmartOrganizerEngine {
             Files.walkFileTree(sourceDir, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (ProgressTracker.isCanceled()) {
+                        return FileVisitResult.TERMINATE;
+                    }
                     // Skip hidden files or system files
                     if (Files.isHidden(file) || file.getFileName().toString().startsWith(".")) {
                         return FileVisitResult.CONTINUE;
@@ -95,11 +98,17 @@ public class SmartOrganizerEngine {
 
                 @Override
                 public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                    if (ProgressTracker.isCanceled()) {
+                        return FileVisitResult.TERMINATE;
+                    }
                     return FileVisitResult.CONTINUE; // gracefully skip
                 }
                 
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    if (ProgressTracker.isCanceled()) {
+                        return FileVisitResult.TERMINATE;
+                    }
                     // Do not recurse into Organized_* folders
                     if (dir.getFileName() != null && dir.getFileName().toString().startsWith("Organized_")) {
                         return FileVisitResult.SKIP_SUBTREE;
@@ -120,6 +129,10 @@ public class SmartOrganizerEngine {
         ProgressTracker.phase = "Moving files";
 
         for (MoveOperation op : operations) {
+            if (ProgressTracker.isCanceled()) {
+                ProgressTracker.phase = "Canceled";
+                break;
+            }
             ProgressTracker.currentFile = op.originalPath;
             try {
                 Path source = Paths.get(op.originalPath);

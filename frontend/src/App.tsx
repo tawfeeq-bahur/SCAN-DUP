@@ -117,7 +117,7 @@ export default function App() {
       </nav>
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-hidden relative">
+      <main className="flex-1 overflow-visible relative">
         <motion.div
           animate={{ 
             opacity: activeView === 'monitor' ? 1 : 0, 
@@ -125,7 +125,7 @@ export default function App() {
             scale: activeView === 'monitor' ? 1 : 0.98
           }}
           transition={{ duration: 0.2 }}
-          className={`absolute inset-0 p-8 max-w-6xl mx-auto overflow-auto ${activeView === 'monitor' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
+          className={`absolute inset-0 px-9 py-8 max-w-[1400px] mx-auto overflow-auto pr-12 ${activeView === 'monitor' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
         >
           <SystemMonitor isActive={activeView === 'monitor'} />
         </motion.div>
@@ -137,7 +137,7 @@ export default function App() {
             scale: activeView === 'dashboard' ? 1 : 0.98
           }}
           transition={{ duration: 0.2 }}
-          className={`absolute inset-0 p-8 max-w-6xl mx-auto overflow-auto ${activeView === 'dashboard' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
+          className={`absolute inset-0 px-9 py-8 max-w-[1400px] mx-auto overflow-auto pr-12 ${activeView === 'dashboard' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
         >
           <Dashboard />
         </motion.div>
@@ -149,7 +149,7 @@ export default function App() {
             scale: activeView === 'radar' ? 1 : 0.98
           }}
           transition={{ duration: 0.2 }}
-          className={`absolute inset-0 p-8 max-w-6xl mx-auto overflow-auto ${activeView === 'radar' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
+          className={`absolute inset-0 px-9 py-8 max-w-[1400px] mx-auto overflow-auto pr-12 ${activeView === 'radar' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
         >
           <StorageRadar />
         </motion.div>
@@ -161,7 +161,7 @@ export default function App() {
             scale: activeView === 'junk' ? 1 : 0.98
           }}
           transition={{ duration: 0.2 }}
-          className={`absolute inset-0 p-8 max-w-6xl mx-auto overflow-auto ${activeView === 'junk' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
+          className={`absolute inset-0 px-9 py-8 max-w-[1400px] mx-auto overflow-auto pr-12 ${activeView === 'junk' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
         >
           <JunkSweeper />
         </motion.div>
@@ -173,7 +173,7 @@ export default function App() {
             scale: activeView === 'organizer' ? 1 : 0.98
           }}
           transition={{ duration: 0.2 }}
-          className={`absolute inset-0 p-8 max-w-6xl mx-auto overflow-auto ${activeView === 'organizer' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
+          className={`absolute inset-0 px-9 py-8 max-w-[1400px] mx-auto overflow-auto pr-12 ${activeView === 'organizer' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
         >
           <SmartOrganizer />
         </motion.div>
@@ -185,7 +185,7 @@ export default function App() {
             scale: activeView === 'history' ? 1 : 0.98
           }}
           transition={{ duration: 0.2 }}
-          className={`absolute inset-0 p-8 max-w-6xl mx-auto overflow-auto ${activeView === 'history' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
+          className={`absolute inset-0 px-9 py-8 max-w-[1400px] mx-auto overflow-auto pr-12 ${activeView === 'history' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
         >
           <ScanHistory isActive={activeView === 'history'} />
         </motion.div>
@@ -197,7 +197,7 @@ export default function App() {
             scale: activeView === 'settings' ? 1 : 0.98
           }}
           transition={{ duration: 0.2 }}
-          className={`absolute inset-0 p-8 max-w-6xl mx-auto overflow-auto ${activeView === 'settings' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
+          className={`absolute inset-0 px-9 py-8 max-w-[1400px] mx-auto overflow-auto pr-12 ${activeView === 'settings' ? 'pointer-events-auto z-10' : 'pointer-events-none z-0'}`}
         >
           <SettingsView />
         </motion.div>

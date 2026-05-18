@@ -34,6 +34,9 @@ public class JunkSweeperEngine {
                 Files.walkFileTree(startPath, new SimpleFileVisitor<Path>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                        if (ProgressTracker.isCanceled()) {
+                            return FileVisitResult.TERMINATE;
+                        }
                         ProgressTracker.filesScanned++;
                         ProgressTracker.bytesScanned += attrs.size();
                         ProgressTracker.currentFile = file.toString();
@@ -51,6 +54,9 @@ public class JunkSweeperEngine {
 
                     @Override
                     public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                        if (ProgressTracker.isCanceled()) {
+                            return FileVisitResult.TERMINATE;
+                        }
                         return FileVisitResult.CONTINUE; // Skip unreadable
                     }
                 });

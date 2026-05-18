@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
@@ -96,6 +96,51 @@ app.whenReady().then(async () => {
 
   createWindow();
 
+  // IPC handler for folder selection from renderer
+  ipcMain.handle('select-folder', async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        properties: ['openDirectory']
+      });
+      if (result.canceled || !result.filePaths || result.filePaths.length === 0) return null;
+      return result.filePaths[0];
+    } catch (err) {
+      console.error('Error selecting folder:', err);
+      return null;
+    }
+  });
+
+  // IPC handler to reveal a file in Windows Explorer
+  ipcMain.handle('reveal-file', async (_event, filePath) => {
+    try {
+      shell.showItemInFolder(filePath);
+    } catch (err) {
+      console.error('Failed to reveal file:', err);
+    }
+  });
+
+  ipcMain.handle('restart-elevated', async () => {
+    if (process.platform !== 'win32') {
+      return { ok: false, message: 'Admin restart is only supported on Windows.' };
+    }
+    if (isDev) {
+      return { ok: false, message: 'Admin restart is only supported in packaged builds. Please run your terminal as Administrator.' };
+    }
+    try {
+      const exePath = process.execPath;
+      const args = process.argv.slice(1).map(arg => `\"${arg}\"`).join(' ');
+      spawn('powershell', [
+        '-NoProfile',
+        '-Command',
+        `Start-Process -FilePath \"${exePath}\" -ArgumentList \"${args}\" -Verb RunAs`
+      ], { detached: true });
+      app.quit();
+      return { ok: true };
+    } catch (err) {
+      console.error('Failed to restart elevated:', err);
+      return { ok: false, message: 'Failed to request elevation.' };
+    }
+  });
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();

@@ -1,11 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Shield, Moon, Bell, Database, Clock, RefreshCw, Lock, Star, Info, Cpu, Filter, Trash2, Cloud } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, Moon, Bell, Database, Clock, RefreshCw, Lock, Star, Info, Cpu, Filter, Trash2, Cloud, Folder } from 'lucide-react';
 
 export default function SettingsView() {
   const [scheduleMode, setScheduleMode] = useState(localStorage.getItem('scheduleMode') || 'disabled');
   const [schedulePath, setSchedulePath] = useState(localStorage.getItem('schedulePath') || 'D:\\');
   const [isScheduling, setIsScheduling] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem('appTheme') || 'light');
+
+  const selectFolder = async () => {
+    try {
+      const electron = (window as any).require ? (window as any).require('electron') : null;
+      const ipc = electron?.ipcRenderer;
+      if (!ipc || !ipc.invoke) return;
+      const selected = await ipc.invoke('select-folder');
+      if (selected) setSchedulePath(selected);
+    } catch (err) {
+      alert('Failed to select folder.');
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('scheduleMode', scheduleMode);
@@ -67,13 +79,23 @@ export default function SettingsView() {
 
               <div className="space-y-2">
                 <label className="text-[10px] font-mono uppercase tracking-widest opacity-60">Target Directory</label>
-                <input 
-                  type="text" 
-                  value={schedulePath}
-                  onChange={(e) => setSchedulePath(e.target.value)}
-                  placeholder="e.g. D:\ or C:\Users"
-                  className="w-full bg-[#141414]/5 border border-[#141414]/20 rounded p-3 text-sm font-mono focus:outline-none focus:border-[#141414]"
-                />
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="text" 
+                    value={schedulePath}
+                    onChange={(e) => setSchedulePath(e.target.value)}
+                    placeholder="e.g. D:\ or C:\Users"
+                    className="flex-1 bg-[#141414]/5 border border-[#141414]/20 rounded p-3 text-sm font-mono focus:outline-none focus:border-[#141414]"
+                  />
+                  <button
+                    onClick={selectFolder}
+                    aria-label="Select Folder"
+                    title="Select folder"
+                    className="p-3 rounded border border-[#141414]/20 bg-[#141414]/5 hover:bg-[#141414]/10 transition-colors"
+                  >
+                    <Folder size={16} />
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-4 pt-4 border-t border-[#141414]/10">
